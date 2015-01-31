@@ -40,7 +40,7 @@ compiling should be as simple as typing `make` at the command prompt.
 The tree code does not support compiling on 32-bit machines and has not been
 tested with other compilers.  Additionally, the tree code does not support
 non-Unix environments. (Mac OS X is fine; Windows is not).  OpenMP is
-now required to compile; 
+now required to compile.
 
 The tree code can use up to 32 cores, but is not completely parallelized.
 In its current version, it can be reasonably used with up to 4096^3-particle
