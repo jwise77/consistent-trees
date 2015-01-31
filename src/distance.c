@@ -1,9 +1,9 @@
 #include <math.h>
 #include <assert.h>
 
-#define MAX_Z 100.0
-#define Z_BINS 1000.0
-#define TOTAL_BINS ((int)(MAX_Z*Z_BINS))
+#define MAX_Z 100
+#define Z_BINS 1000
+#define TOTAL_BINS (MAX_Z*Z_BINS)
 double Omega_M, Omega_L, h;
 double Dh;
 double _Dc[TOTAL_BINS];
@@ -33,9 +33,9 @@ void init_cosmology(double omega_m, double omega_l, double h0)
   h = h0;
   Dh = 2997.92458 / h; //In Mpc  (Speed of light / H0)
   for (i=0; i<TOTAL_BINS; i++) {
-    z = (float)(i+0.5) / Z_BINS;
+    z = (float)(i+0.5) / (double)Z_BINS;
     _Dc[i] = Dc_int * Dh;
-    Dc_int += 1.0 / (_E(z)*Z_BINS);
+    Dc_int += 1.0 / (_E(z)*(double)Z_BINS);
   }
 }
 
@@ -48,7 +48,7 @@ double scale_factor(double z) {
 }
 
 double comoving_distance(double z) {
-  float f = z*Z_BINS;
+  float f = z*(double)Z_BINS;
   int bin = f;
   if (z<0) return 0;
   if (bin>(TOTAL_BINS-2)) return (_Dc[TOTAL_BINS-1]);

@@ -11,7 +11,7 @@ void smooth_mass(void);
 int double_sort(const void *a, const void *b);
 void conserve_mass(void);
 int64_t create_headers(void);
-int64_t read_halo_from_line(struct merger_halo *halo, char *buffer, int64_t snapnum);
+int64_t read_halo_from_file(struct merger_halo *halo, FILE *input, int64_t snapnum);
 int64_t halo_pos_to_tree(struct merger_halo *halo);
 
 void *add_to_array(void *array, int64_t *size, int64_t width, void *data);

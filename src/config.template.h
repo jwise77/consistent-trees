@@ -13,7 +13,7 @@ string(OUTBASE,".");
 string(TREE_OUTBASE,".");
 string(HLIST_OUTBASE,".");
 
-string(INPUT_FORMAT, "ASCII"); //Or "binary"
+string(INPUT_FORMAT, "ASCII");
 
 real(MAJOR_MERGER,0.3);
 real(MIN_MMP_MASS_RATIO,0.5);
@@ -51,3 +51,7 @@ integer(EXTRA_PARAMS, 0);                 //Number of extra parameters
 string(EXTRA_PARAM_LABELS, "");           //Labels for output
 string(EXTRA_PARAM_DESCRIPTIONS, "");     //Descriptions in merger tree, etc.
 string(EXTRA_PARAM_INTERPOLATIONS, "");   //Interpolation method: "l", "s", "c" for linear, square, cubic
+integer(SUSSING_MASS_FIELD, -1);
+integer(FIX_ROCKSTAR_SPINS, -1);
+
+integer(LIMITED_MEMORY, 0);

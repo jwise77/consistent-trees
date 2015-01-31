@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
 
   if (argc==1) {
     fprintf(stderr, "Consistent Trees, Version %s\n", TREE_VERSION);
-    fprintf(stderr, "(C) 2011-2013, Peter Behroozi.  See the LICENSE file for redistribution details.\n");
+    fprintf(stderr, "%s.  See the LICENSE file for redistribution details.\n", TREE_COPYRIGHT);
     fprintf(stderr, "Usage: %s options.cfg\n", argv[0]); exit(1);
   }
   if (argc>1) grav_config(argv[1], 1);
@@ -99,9 +99,10 @@ int main(int argc, char **argv) {
 
     //Load halos at current timestep
     max_mvir = min_mvir = 0;
-    snprintf(buffer, 1024, "%s/out_%"PRId64".list", INBASE, outputs[i]);
+    snprintf(buffer, 1024, "%s/out_%"PRId64".list%s", INBASE, outputs[i],
+	     ((!strcasecmp(INPUT_FORMAT, "BINARY")) ? ".bin" : ""));
     clear_halo_stash(&now);
-    gc_load_halos(buffer, &now, a1);
+    gc_load_halos(buffer, &now, a1, 1);
     calc_tidal_forces(&now, a1, a2);
     for (j=0; j<evolved.num_halos; j++) {
       if (evolved.halos[j].mvir > max_mvir) max_mvir = evolved.halos[j].mvir;
@@ -180,8 +181,10 @@ int64_t gen_new_phantom_id(struct halo_stash *h, int64_t last_id) {
 }
 
 void tag_major_mergers(void) {
-  int64_t i, eindex, mmp_index;
+  int64_t i;
+#pragma omp parallel for private(i) schedule(static,1000)
   for (i=0; i<now.num_halos; i++) {
+    int64_t eindex, mmp_index;
     eindex = id_to_index(evolved, now.halos[i].descid);
     if (eindex < 0) continue;
     if (evolved.halos[eindex].mmp_id == now.halos[i].id) continue;
@@ -194,6 +197,7 @@ void tag_major_mergers(void) {
 
 void calculate_tracking_stats(float a1, float a2) {
   int64_t i, eindex;
+  //#pragma omp parallel for private(i,eindex) schedule(static,1000)
   for (i=0; i<now.num_halos; i++) {
     eindex = id_to_index(evolved, now.halos[i].descid);
     if (eindex < 0) continue;
@@ -224,9 +228,11 @@ void create_phantom_progenitors(float a1, float a2)
   incoming_mass = check_realloc(incoming_mass, sizeof(float)*evolved.num_halos,
 				"Allocating incoming mass checks.");
   memset(incoming_mass, 0, sizeof(float)*evolved.num_halos);
+  //#pragma omp parallel for private(i,eindex)
   for (i=0; i<now.num_halos; i++) {
     eindex = id_to_index(evolved, now.halos[i].descid);
     if (eindex < 0) continue;
+    //#pragma omp atomic
     incoming_mass[eindex]+=now.halos[i].mvir;
   }
 
@@ -250,6 +256,7 @@ void create_phantom_progenitors(float a1, float a2)
     last_id = gen_new_phantom_id(&now, last_id);
     tmp_halo.id = last_id;
     tmp_halo.descid = evolved.halos[j].id;
+    tmp_halo.pid = tmp_halo.upid = tmp_halo.tidal_id = tmp_halo.mmp_id = -1;
     evolved.halos[j].mmp_id = tmp_halo.id;
     add_halo(&now, tmp_halo);
     log_phantom_halo(a1, a2, &tmp_halo, &(evolved.halos[j]));
@@ -260,10 +267,11 @@ void create_phantom_progenitors(float a1, float a2)
 }
 
 void mark_dead_halos(float a) {
-  int64_t j, index;
+  int64_t j;
   //Mark all remaining halos without descendants as dead.
+#pragma omp parallel for private(j) schedule(static,1000)
   for (j=0; j<now.num_halos; j++) {
-    index = id_to_index(evolved, now.halos[j].descid);
+    int64_t index = id_to_index(evolved, now.halos[j].descid);
     if (index < 0) {
       now.halos[j].flags |= DEAD_HALO_FLAG;
       log_dead_halo(a, &(now.halos[j]));
@@ -272,12 +280,14 @@ void mark_dead_halos(float a) {
 }
 
 void fix_halos_without_descendants(float a1, float a2) {
-  int64_t j,k,index, pindex, eindex;
+  int64_t j,k;
   
   //Assign halos w/o descendants based on tidal forces
   //Have to do this recursively in case nested mergers occur 
   for (k=0; k<RECURSION_LIMIT; k++) {
+    //#pragma omp parallel for private(j)
     for (j=0; j<now.num_halos; j++) {
+      int64_t index, pindex, eindex;
       if (now.halos[j].descid >= 0) continue;
       if (now.halos[j].tidal_id < 0) continue;
       index = id_to_index(now, now.halos[j].tidal_id);
@@ -389,6 +399,7 @@ void fix_halos_without_progenitors(float a1, float a2, int64_t stage) {
   fast3tree_results_free(nearest);
 
   //Copy actual halo properties for evolved halos with identified MMPs:
+#pragma omp parallel for private(j,index,tmp_halo) schedule(static,1000)
   for (j=0; j<evolved.num_halos; j++) {
     if (evolved.halos[j].mmp_id < 0) continue;
     index = id_to_index(now, evolved.halos[j].mmp_id);
@@ -415,6 +426,7 @@ void fix_halos_without_progenitors(float a1, float a2, int64_t stage) {
 
 void mark_unphysical_halos(float a) {
   int64_t j;
+#pragma omp parallel for private(j) schedule(static,1000)
   for (j=0; j<now.num_halos; j++) {
     if ((now.halos[j].mvir <=0) || (now.halos[j].vmax <= 0)) {
       fprintf(logfile, "Unphysical halo: marking for deletion. (%f %"PRId64" %e %f)\n",
@@ -429,12 +441,12 @@ void mark_unphysical_halos(float a) {
 }
 
 void break_spurious_links(float a1, float a2) {
-  int64_t j, eindex;
-  float sigma_x, sigma_v, sigma_vmax, d, vmax_avg;
-
+  int64_t j;
   //Break spurious links in the merger tree
+  //#pragma omp parallel for private(j)
   for (j=0; j<now.num_halos; j++) {
-    eindex = id_to_index(evolved, now.halos[j].descid);
+    float sigma_x, sigma_v, sigma_vmax, d, vmax_avg;
+    int64_t eindex = id_to_index(evolved, now.halos[j].descid);
     if (eindex < 0) {
       if (now.halos[j].descid >= 0) log_desc_not_found(a1, a2, &(now.halos[j]));
       now.halos[j].descid = -1;
@@ -536,8 +548,9 @@ void initialize_last_timestep(int64_t last_output_num, float scale)
 {
   char buffer[1024];
   int64_t i;
-  snprintf(buffer, 1024, "%s/out_%"PRId64".list", INBASE, last_output_num);
-  gc_load_halos(buffer, &now, scale);
+  snprintf(buffer, 1024, "%s/out_%"PRId64".list%s", INBASE, last_output_num,
+	   ((!strcasecmp(INPUT_FORMAT, "BINARY")) ? ".bin" : ""));
+  gc_load_halos(buffer, &now, scale, 1);
   output_order = check_realloc(output_order, now.num_halos*sizeof(int64_t), "halo output order");
 
   for (i=0; i<now.num_halos; i++) {
@@ -552,7 +565,7 @@ void regen_output_order(int64_t output_num, float scale) {
   char buffer[1024];
   int64_t i;
   snprintf(buffer, 1024, "%s/consistent_%"PRId64".list", OUTBASE, output_num);
-  gc_load_halos(buffer, &evolved, scale);
+  gc_load_halos(buffer, &evolved, scale, 0);
   output_order = check_realloc(output_order, evolved.num_halos*sizeof(int64_t), "halo output order");
   for (i=0; i<evolved.num_halos; i++)
     output_order[i] = evolved.halos[i].id;
@@ -606,6 +619,7 @@ void calculate_new_output_order(void)
 void fork_and_print_halos(char *buffer, struct tree_halo *h, int64_t num_halos, int64_t gzip_halos) {
   struct tree_halo *my_halos = NULL;
   pid_t pid;
+  
   my_halos = check_realloc(NULL, sizeof(struct tree_halo)*num_halos,
 			   "Allocating output halo memory.");
   memcpy(my_halos, h, sizeof(struct tree_halo)*num_halos);
@@ -701,12 +715,22 @@ void sort_process_list_by_vmax_evolved() {
   qsort(process_order, h->num_halos, sizeof(int64_t), sort_evolved_halo_list_by_decreasing_vmax);
 }
 
-void gc_load_halos(char *filename, struct halo_stash *h, float scale)
-{  
+void gc_load_halos(char *filename, struct halo_stash *h, float scale, int64_t orig_data)
+{ 
+  int64_t i;
   box_size = 0;
   clear_halo_stash(h);
   load_halos(filename, h, scale, 0);
   build_id_conv_list(h);
+  if (orig_data && (FIX_ROCKSTAR_SPINS > -1)) {
+    assert(FIX_ROCKSTAR_SPINS < EXTRA_PARAMS);
+    for (i=0; i<h->num_halos; i++) {
+      h->halos[i].extra_params[FIX_ROCKSTAR_SPINS] *= 2.0;
+      float t_u = h->halos[i].extra_params[FIX_ROCKSTAR_SPINS];
+      if (fabs(2.0-t_u) != 0)
+	h->halos[i].spin *= sqrt(fabs(1.0-t_u)/fabs(2.0-t_u));
+    }
+  }
 }
 
 /* Max range is the maximum distance over which the gravitational effects of

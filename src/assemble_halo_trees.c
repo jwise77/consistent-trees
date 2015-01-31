@@ -20,7 +20,7 @@ float *output_scales=NULL;
 int64_t *outputs=NULL, num_outputs=0;
 int64_t *num_trees = NULL;
 struct merger_halo *extra_halos = NULL;
-struct cached_io **tree_inputs = NULL;
+FILE **tree_inputs = NULL;
 struct merger_halo *halos = NULL;
 struct litehash *lh = NULL;
 int64_t num_halos=0,num_halos_output=0;
@@ -32,7 +32,8 @@ int main(int argc, char **argv)
   int64_t i, j, k;
   int64_t tree_header_offset;
   char buffer[1024];
-  struct cached_io *input;
+  //struct cached_io *input;
+  FILE *input;
   FILE *output;
   struct rlimit rlp;
 
@@ -43,12 +44,14 @@ int main(int argc, char **argv)
   if (argc > 1) grav_config(argv[1], 0);
   else { 
     fprintf(stderr, "Consistent Trees, Version %s\n", TREE_VERSION);
-    fprintf(stderr, "(C) 2011-2013, Peter Behroozi.  See the LICENSE file for redistribution details.\n");
+    fprintf(stderr, "%s.  See the LICENSE file for redistribution details.\n", TREE_COPYRIGHT);
     fprintf(stderr, "Usage: %s options.cfg\n", argv[0]); exit(1); }
   read_outputs(&output_scales, &outputs, &num_outputs);
 
   tree_header_offset = create_headers();
-  tree_inputs = check_realloc(NULL, sizeof(struct cached_io *)*num_outputs,
+  /*tree_inputs = check_realloc(NULL, sizeof(struct cached_io *)*num_outputs,
+    "Allocating tree inputs.");*/
+  tree_inputs = check_realloc(NULL, sizeof(FILE *)*num_outputs,
 			      "Allocating tree inputs.");
   extra_halos = check_realloc(NULL, sizeof(struct merger_halo)*num_outputs,
 			      "Allocating extra halo slots.");
@@ -56,7 +59,8 @@ int main(int argc, char **argv)
   for (i=0; i<num_outputs; i++) {
     snprintf(buffer, 1024, "%s/really_consistent_%"PRId64".list", 
 	     OUTBASE, outputs[i]);
-    tree_inputs[i] = cfopen(buffer, 2000000);
+    //tree_inputs[i] = cfopen(buffer, 2000000);
+    tree_inputs[i] = check_fopen(buffer, "r");
   }
   snprintf(buffer, 1024, "%s/locations.dat", TREE_OUTBASE);
   locations = check_fopen(buffer, "w");
@@ -64,10 +68,8 @@ int main(int argc, char **argv)
 
   input = tree_inputs[num_outputs-1];
 
-  while (cfgets(input, buffer, 1024)) {
-    struct merger_halo halo;
-    if (buffer[0] == '#') continue;
-    read_halo_from_line(&halo, buffer, num_outputs-1);
+  struct merger_halo halo;
+  while (read_halo_from_file(&halo, input, num_outputs-1)) {
     halo.scale = output_scales[num_outputs-1];
     halo.desc_scale = 0;
 
@@ -342,6 +344,9 @@ int64_t create_headers(void) {
 		"#Consistent Trees Version %s\n", EXTRA_PARAM_LABELS, 
 		Om, Ol, h0, BOX_WIDTH,
 		MAJOR_MERGER, epd_prefix, epd, epd_postfix, TREE_VERSION);
+	if (FIX_ROCKSTAR_SPINS > -1) {
+	  fprintf(output, "#Includes fix for Rockstar spins & T/|U| (assuming T/|U| = column %"PRId64")\n", FIX_ROCKSTAR_SPINS+34);
+	}
 	
 	offset = ftello(output);
 	fprintf(output, "XXXXXXXXXXXXXXXXXX\n"); //For the number of trees
@@ -390,6 +395,48 @@ int64_t read_halo_from_line(struct merger_halo *halo, char *buffer, int64_t snap
 #undef NUM_INPUTS
 }
 
+int64_t read_binary_halo_from_file(struct merger_halo *halo, FILE *input, int64_t snapnum) {
+  struct tree_halo hf = {0};
+  int64_t n = fread(&hf, sizeof(struct tree_halo), 1, input);
+  if (n < 1) return 0;
+  memset(halo, 0, sizeof(struct merger_halo));
+  halo->id = hf.id;
+  halo->descid = hf.descid;
+  halo->orig_mvir = halo->mvir = hf.mvir;
+  halo->vmax = hf.vmax;
+  halo->vrms = hf.vrms;
+  halo->rvir = hf.rvir;
+  halo->rs = hf.rs;
+  halo->np = hf.np;
+  memcpy(halo->pos, hf.pos, sizeof(float)*3);
+  memcpy(halo->vel, hf.vel, sizeof(float)*3);
+  memcpy(halo->J, hf.J, sizeof(float)*3);
+  halo->spin = hf.spin;
+  halo->phantom = hf.phantom;
+  halo->mmp = (hf.flags & MMP_FLAG) ? 1 : 0;
+  halo->pid = hf.pid;
+  halo->upid = hf.upid;
+  halo->orig_id = hf.orig_id;
+  halo->last_mm = hf.last_mm;
+  halo->desc_pid = -1;
+  halo->snapnum = snapnum;
+  memcpy(halo->extra_params, hf.extra_params, sizeof(double)*EXTRA_PARAMS);
+  return 1;
+}
+
+int64_t read_halo_from_file(struct merger_halo *halo, FILE *input, int64_t snapnum) {
+  if (!strcasecmp(INPUT_FORMAT, "BINARY"))
+    return read_binary_halo_from_file(halo, input, snapnum);
+
+  char buffer[1024];
+  while (1) {
+    if (!fgets(buffer, 1024, input)) return 0;
+    if (buffer[0] != '#') break;
+  }
+  return read_halo_from_line(halo, buffer, snapnum);
+}
+
+
 int64_t halo_pos_to_tree(struct merger_halo *halo) {
   int64_t idx[3], i;
   for (i=0; i<3; i++) idx[i] = (int64_t)(halo->pos[i]*BOX_DIVISIONS/BOX_WIDTH)
@@ -407,17 +454,16 @@ void *add_to_array(void *array, int64_t *size, int64_t width, void *data) {
 
 void build_tree(int64_t id, int64_t inputnum) {
   int64_t i = inputnum;
-  int64_t id_index = 0, res;
+  int64_t id_index = 0;
   double scale, desc_scale;
   struct merger_halo halo;
-  char buffer[1024];
   int64_t *ids=NULL, num_ids = 0;
   int64_t *new_ids=NULL, num_new_ids = 0;
 
   ids = add_to_array(ids, &num_ids, sizeof(int64_t), &id_index);
 
   while (i >= 0) {
-    struct cached_io *input = tree_inputs[i];
+    FILE *input = tree_inputs[i];
     scale = output_scales[i];
     desc_scale = (i < num_outputs-1) ? output_scales[i+1] : 0;
 
@@ -426,10 +472,7 @@ void build_tree(int64_t id, int64_t inputnum) {
 	halo = extra_halos[i];
 	extra_halos[i].id = -1;
       } else {
-	while ((res = cfgets(input, buffer, 1024)) && (buffer[0] == '#'));
-	if (!res) break;
-	memset(&halo, 0, sizeof(struct merger_halo));
-	if (!read_halo_from_line(&halo, buffer, i)) continue;
+	if (!read_halo_from_file(&halo, input, i)) break;
       }
 
       if (halo.descid < 0) {

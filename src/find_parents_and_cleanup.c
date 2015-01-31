@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
 
   if (argc==1) {
     fprintf(stderr, "Consistent Trees, Version %s\n", TREE_VERSION);
-    fprintf(stderr, "(C) 2011-2012, Peter Behroozi.  See the LICENSE file for redistribution details.\n");
+    fprintf(stderr, "%s.  See the LICENSE file for redistribution details.\n", TREE_COPYRIGHT);
     fprintf(stderr, "Usage: %s options.cfg\n", argv[0]); exit(1);
   }
   grav_config(argv[1], 0);
@@ -107,8 +107,9 @@ int main(int argc, char **argv) {
     if (stage < 3) tag_children_of_centrals(a1);
 
     fclose(logfile);
-    pid = fork();
     translate_ids(stage);
+
+    pid = fork();
     if (pid < 1) {
       snprintf(buffer, 1024, "%s/cleanup_logfile_%"PRId64".list", OUTBASE, outputs[i]);
       logfile = check_fopen(buffer, "a");
@@ -117,6 +118,7 @@ int main(int argc, char **argv) {
       cleanup_print_stats(outputs[i]);
       cleanup_print_halos(outputs[i], stage);
       fclose(logfile);
+      if (!pid) clear_halo_stash(&now);
       gzip_file(buffer);
       if (!pid) return 0;
     }
@@ -468,35 +470,51 @@ void cleanup_find_new_descendants(float a1, float a2)
     }}
 
   //Otherwise, maybe have to reinstate halos :(
-  {for (int64_t i=0; i<now.num_halos; i++) {
-    if (!(now.halos[i].flags & FIND_NEW_DESC_FLAG)) continue;
-    int64_t eindex = id_to_index(next, now.halos[i].descid);
-    assert(eindex>=0);
-    now.halos[i].flags -= (now.halos[i].flags & DEAD_HALO_FLAG);
-    if (next.halos[eindex].tidal_id == -1) {
-      float best_mass = 0;
-      for (int64_t j=0; j<next.num_halos; j++) {
-	if (j==eindex) continue;
-	if ((next.halos[j].descid == next.halos[eindex].descid) && (next.halos[j].mvir > best_mass) &&
-	    !(next.halos[j].flags & DEAD_HALO_FLAG)) {
-	  best_mass = next.halos[j].mvir;
-	  next.halos[eindex].tidal_id = next.halos[j].id;
-	}
-      }
+  if (next.num_halos) {
+    int64_t min_descid, max_descid;
+    max_descid = min_descid = next.halos[0].descid;
+    for (int64_t j=0; j<next.num_halos; j++) {
+      if (next.halos[j].descid < min_descid)
+	min_descid = next.halos[j].descid;
+      if (next.halos[j].descid > max_descid)
+	max_descid = next.halos[j].descid;
+    }
+    int64_t *massive_by_descid = check_realloc(NULL, sizeof(int64_t)*(max_descid-min_descid+1), "Allocating most-massive descid array.\n");
+    for (int64_t j=0; j<(max_descid-min_descid+1); j++) massive_by_descid[j]=-1;
+    for (int64_t j=0; j<next.num_halos; j++) {
+      if (next.halos[j].flags & DEAD_HALO_FLAG) continue;
+      int64_t did = next.halos[j].descid-min_descid;
+      int64_t msv = massive_by_descid[did];
+      if (msv == -1 || next.halos[j].mvir > next.halos[msv].mvir)
+	massive_by_descid[did] = j;
     }
 
-    int64_t new_eindex = id_to_index(next, next.halos[eindex].tidal_id);
-    if (new_eindex >= 0) {
-      now.halos[i].descid = next.halos[eindex].tidal_id;
-      log_found_new_descendant(a1, a2, &(now.halos[i]), &(next.halos[new_eindex]));
-    }
-    else if (next.halos[eindex].flags & DEAD_HALO_FLAG) {
-      next.halos[eindex].flags -= (next.halos[eindex].flags & DEAD_HALO_FLAG);
-      log_forced_halo_return(a1, a2, &(now.halos[i]), &(next.halos[eindex]));
-    } else {
-      log_already_resuscitated(a1, a2, &(now.halos[i]), &(next.halos[eindex]));
-    }
-    }}
+    {for (int64_t i=0; i<now.num_halos; i++) {
+	if (!(now.halos[i].flags & FIND_NEW_DESC_FLAG)) continue;
+	int64_t eindex = id_to_index(next, now.halos[i].descid);
+	assert(eindex>=0);
+	now.halos[i].flags -= (now.halos[i].flags & DEAD_HALO_FLAG);
+	if ((next.halos[eindex].tidal_id == -1) && (next.halos[eindex].descid > -1)) {
+	  int64_t did = next.halos[eindex].descid-min_descid;
+	  int64_t msv = massive_by_descid[did];
+	  if (msv > -1)
+	    next.halos[eindex].tidal_id = next.halos[msv].id;
+	}
+
+	int64_t new_eindex = id_to_index(next, next.halos[eindex].tidal_id);
+	if (new_eindex >= 0) {
+	  now.halos[i].descid = next.halos[eindex].tidal_id;
+	  log_found_new_descendant(a1, a2, &(now.halos[i]), &(next.halos[new_eindex]));
+	}
+	else if (next.halos[eindex].flags & DEAD_HALO_FLAG) {
+	  next.halos[eindex].flags -= (next.halos[eindex].flags & DEAD_HALO_FLAG);
+	  log_forced_halo_return(a1, a2, &(now.halos[i]), &(next.halos[eindex]));
+	} else {
+	  log_already_resuscitated(a1, a2, &(now.halos[i]), &(next.halos[eindex]));
+	}
+      }}
+    free(massive_by_descid);
+  }
 
   //Fix MMP IDs
   {for (int64_t i=0; i<now.num_halos; i++) {
@@ -527,34 +545,34 @@ inline int64_t id_to_index(struct halo_stash h, int64_t id) {
 
 void find_parents(void) {
   int64_t i, j;
-  struct fast3tree_results *nearest;
-  struct tree_halo *h1, *h2;
-  float max_dist = (float)box_size/2.01, range;
+  float max_dist = (float)box_size/2.01;
 
-  for (i=0; i<now.num_halos; i++) now.halos[i].pid = now.halos[i].upid = -1;
+  {
+    for (i=0; i<now.num_halos; i++) now.halos[i].pid = now.halos[i].upid = -1;
 
-  nearest = fast3tree_results_init();
-  for (i=0; i<now.num_halos; i++) {
-    h1 = &(now.halos[halo_order[i]]);
-    if (h1->flags & DEAD_HALO_FLAG) continue;
+    struct fast3tree_results *nearest = fast3tree_results_init();
+    for (i=0; i<now.num_halos; i++) {
+      struct tree_halo *h1 = &(now.halos[halo_order[i]]);
+      if (h1->flags & DEAD_HALO_FLAG) continue;
+      
+      IF_PERIODIC {
+	float range = h1->rvir/1.0e3;
+	if (max_dist < range) range = max_dist;
+	fast3tree_find_sphere_periodic(halo_tree, nearest, h1->pos, range);
+      } else {
+	fast3tree_find_sphere(halo_tree, nearest, h1->pos, h1->rvir/1.0e3);
+      }
 
-    IF_PERIODIC {
-      range = h1->rvir/1.0e3;
-      if (max_dist < range) range = max_dist;
-      fast3tree_find_sphere_periodic(halo_tree, nearest, h1->pos, range);
-    } else {
-      fast3tree_find_sphere(halo_tree, nearest, h1->pos, h1->rvir/1.0e3);
-    }
-
-    for (j=0; j<nearest->num_points; j++) {
-      h2 = nearest->points[j];
-      if (h2->vmax < h1->vmax) {
-	h2->pid = h1->id;
-	if (h2->upid < 0) h2->upid = h1->id;
+      for (j=0; j<nearest->num_points; j++) {
+	struct tree_halo *h2 = nearest->points[j];
+	if (h2->vmax < h1->vmax) {
+	  h2->pid = h1->id;
+	  if (h2->upid < 0) h2->upid = h1->id;
+	}
       }
     }
+    fast3tree_results_free(nearest);
   }
-  fast3tree_results_free(nearest);
 }
 
 void calc_num_prog(int stage) {

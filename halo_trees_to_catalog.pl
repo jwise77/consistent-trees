@@ -17,7 +17,7 @@ open INPUT, "<", "$TREE_OUTBASE/$trees[0]";
 our $firstline = <INPUT>;
 chomp($firstline);
 my @elems = split(" ", $firstline);
-push @elems, qw/Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak/;
+push @elems, qw/Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Mpeak_Scale Acc_Scale M4%_Scale/;
 for (0..$#elems) {
     $elems[$_] =~ s/\(\d+\)$//;
     $elems[$_].="($_)";
@@ -35,6 +35,10 @@ $firstline .= "#Acc_Rate_*: Halo mass accretion rates in Msun/h/yr.\n";
 $firstline .= "#            Inst: instantaneous; 100Myr: averaged over past 100Myr,\n";
 $firstline .= "#            X*Tdyn: averaged over past X*virial dynamical time.\n";
 $firstline .= "#            Mpeak: Growth Rate of Mpeak, averaged from current z to z+0.5\n";
+$firstline .= "#Mpeak_Scale: Scale at which Mpeak was reached.\n";
+$firstline .= "#Acc_Scale: Scale at which satellites were accreted.\n";
+$firstline .= "#M4%_Scale: Scale at which halo had 4% of its peak mass.\n";
+
 
 opendir DIR, $HLIST_OUTBASE;
 for (readdir DIR) {
@@ -135,6 +139,7 @@ sub process_tree {
     for $h (@halos) {
 	calc_mass_vmax_acc($h);
 	calc_halfmass($h);
+	calc_p04mass($h);
 	calc_accretion_rates($h);
 	$h->print();
     }
@@ -150,12 +155,16 @@ sub calc_mass_vmax_acc {
 	if ($h->{upid}>-1) { # If we are a subhalo
 	    $h->{vacc} = $h->{prog}{vacc};
 	    $h->{macc} = $h->{prog}{macc};
+	    $h->{acc_scale} = $h->{prog}{acc_scale};
 	} else {
 	    $h->{vacc} = $h->{vmax};
 	    $h->{macc} = $h->{orig_mvir};
+	    $h->{acc_scale} = $h->{scale};
 	}
 	$h->{vpeak} = max($h->{vmax}, $h->{prog}{vpeak});
 	$h->{mpeak} = max($h->{orig_mvir}, $h->{prog}{mpeak});
+	$h->{mpeak_scale} = ($h->{mpeak} == $h->{prog}{mpeak}) ?
+	    $h->{prog}{mpeak_scale} : $h->{scale};
 
 	#Vpeak / Mpeak *before* accretion
 	#$h->{vpeak} = max($h->{vacc}, $h->{prog}{vpeak});
@@ -165,6 +174,8 @@ sub calc_mass_vmax_acc {
 	$h->{vacc} = $h->{vmax};
 	$h->{mpeak} = $h->{orig_mvir};
 	$h->{macc} = $h->{orig_mvir};
+	$h->{acc_scale} = $h->{scale};
+	$h->{mpeak_scale} = $h->{scale};
     }
 }
 
@@ -185,6 +196,40 @@ sub calc_halfmass {
     }
     else {
 	$h->{halfmass} = $h->{scale};
+	return $h;
+    }
+}
+
+sub calc_p04mass {
+    no warnings 'recursion';
+    my $h = shift;
+    return if ($h->{p4seen});
+    $h->{p4seen} = 1;
+    if ($h->{prog}) {
+	my $hm = calc_p04mass($h->{prog});
+	my $hm2 = $hm;
+	while (defined($hm2 = $halos{$hm2->{desc_scale}}{$hm2->{descid}})) {
+	    last unless ($hm2->{orig_mvir} < 0.04*$h->{mpeak} or 
+		$hm2->{orig_mvir} < $MASS_RES_OK/8.0);
+	    $hm = $hm2 if ($hm2->{orig_mvir} > $hm->{orig_mvir});
+	}
+	my $zhalf = 1.0/$hm->{halfmass}-1.0;
+	my $z2 = 1.0/$hm->{scale} - 1.0;
+	my $mhalf = log($h->{mpeak})/log(10);
+	my $m2 = log($hm->{orig_mvir})/log(10);
+	if (abs($m2 - $mhalf) < 0.3) {
+	    $m2 = log($h->{mpeak})/log(10);
+	    $z2 = 1.0/$h->{mpeak_scale} - 1.0;
+	}
+	my $mw = $mhalf - 1.0969;
+	my $z4 = (abs($m2-$mhalf) > 0) ? 
+	    ($z2 + ($mw-$m2)*($z2-$zhalf)/($m2-$mhalf)) : (100);
+	$h->{p04mass} = 1.0/($z4+1);
+	$h->{p04mass} = 0.01 if ($h->{p04mass} < 0.01);
+	return($hm);
+    }
+    else {
+	$h->{p04mass} = $h->{scale};
 	return $h;
     }
 }
@@ -269,6 +314,7 @@ sub load_config {
     our $OUTLIST = $config->{SCALEFILE};
     our $Om = $config->{Om} || 0.27;
     our $h0 = $config->{h0} || 0.70;
+    our $MASS_RES_OK = $config->{MASS_RES_OK} || 1e11;
     Universe::Time::init($Om, $h0);
     
 #    our $SINGLE_THREAD_OUTPUT = $config->{SINGLE_THREAD_OUTPUT};
@@ -317,7 +363,7 @@ sub print {
     return unless (defined $h->{scale} and $h->{scale} > 0);
     _open_scale($h->{scale}) if (!exists($tree_outputs{$h->{scale}}));
     my $file = $tree_outputs{$h->{scale}};
-    $file->printf("%.4f %8s %.4f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %s %.5e %.5e %6f %6f %.4f %.3e %.3e %.3e %.3e %.3e\n",
+    $file->printf("%.4f %8s %.4f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %s %.5e %.5e %6f %6f %.4f %.3e %.3e %.3e %.3e %.3e %.3e %.3e %.3e\n",
     $h->{scale}, $h->{id}, $h->{desc_scale}, $h->{descid}, $h->{num_prog},
     $h->{pid}, $h->{upid}, $h->{desc_pid}, $h->{phantom},
     $h->{mvir}, $h->{orig_mvir}, $h->{rvir}, $h->{rs}, $h->{vrms},
@@ -326,6 +372,6 @@ sub print {
     $h->{vel}[0], $h->{vel}[1], $h->{vel}[2],
     $h->{J}[0], $h->{J}[1], $h->{J}[2], $h->{spin}, $h->{rest},
     $h->{macc}, $h->{mpeak}, $h->{vacc}, $h->{vpeak}, $h->{halfmass},
-    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak});
+    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{p04mass});
 }
 

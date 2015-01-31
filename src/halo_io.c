@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <strings.h>
+#include <sys/stat.h>
 #include "gravitational_consistency.h"
 #include "masses.h"
 #include "check_syscalls.h"
@@ -14,8 +15,9 @@ extern float box_size;
 
 void gzip_file(char *filename) {
   char buffer[1024];
-  snprintf(buffer, 1024, "gzip -f \"%s\"", filename);
-  system(buffer);
+  snprintf(buffer, 1024, "gzip -f \"%s\" &", filename);
+  if (!LIMITED_MEMORY)
+    system(buffer);
 }
 
 void print_halo(FILE *o, struct tree_halo *th) {
@@ -31,12 +33,10 @@ void print_halo(FILE *o, struct tree_halo *th) {
             "#Units: Radii in kpc / h (comoving)\n");
     return;
   }
-
   if (!strcasecmp(INPUT_FORMAT, "BINARY")) {
     fwrite(th, sizeof(struct tree_halo), 1, o);
     return;
-  }
-
+ }
   mmp = (th->flags & MMP_FLAG) ? 1 : 0;
   flags = 0;
   if (th->flags & SUSPICIOUS_LINK_FLAG) flags = 1;
@@ -64,8 +64,12 @@ void common_print_halos(char *filename, struct tree_halo *h, int64_t num_halos, 
   FILE *o;
 
   o = check_fopen(filename, "w");
-  print_halo(o, NULL);
-  for (i=0; i<num_halos; i++) print_halo(o, &(h[i]));
+  if (!strcasecmp(INPUT_FORMAT, "BINARY")) {
+    fwrite(h, sizeof(struct tree_halo), num_halos, o);
+  } else {
+    print_halo(o, NULL);
+    for (i=0; i<num_halos; i++) print_halo(o, &(h[i]));
+  }
   fclose(o);
   if (gzip_halos) gzip_file(filename);
 }
@@ -157,6 +161,9 @@ void load_halos(char *filename, struct halo_stash *h, float scale, int dead)
 			    &(d.tracked), &(d.tracked_single_mmp), 
 			    &(d.num_mmp_phantoms), &(d.orig_id), &(d.last_mm)};
 
+  int64_t read_ascii = 1;
+  if (!strcasecmp(INPUT_FORMAT, "BINARY")) read_ascii = 0;
+
   gen_ff_cache();
   d.num_prog = d.flags = d.phantom = 0;
   d.mmp_id = -1;
@@ -170,12 +177,10 @@ void load_halos(char *filename, struct halo_stash *h, float scale, int dead)
     data[n] = &(d.extra_params[n-regular_inputs]);
   }
   
-  int64_t read_ascii = 1;
-  if (!strcasecmp(INPUT_FORMAT, "BINARY")) read_ascii = 0;
+  int64_t old_halos = h->num_halos;
   input = check_fopen(filename, "r");
-  while (1) {
-    if (read_ascii) {
-      if (!fgets(buffer, 1024, input)) break;
+  if (read_ascii) {
+    while (fgets(buffer, 1024, input)) {
       if (buffer[0] == '#') continue;
       mmp = flags = 0;
       n = stringparse(buffer, data, (enum parsetype *)types, expected_inputs);
@@ -191,34 +196,52 @@ void load_halos(char *filename, struct halo_stash *h, float scale, int dead)
       if (n < regular_inputs+EXTRA_PARAMS+8) d.num_mmp_phantoms = 0;
       if (n < regular_inputs+EXTRA_PARAMS+9) d.orig_id = -1;
       if (n < regular_inputs+EXTRA_PARAMS+10) d.last_mm = 0;
-    } else {
-      if (fread(&d, sizeof(struct tree_halo), 1, input)<=0) break;
-      mmp = d.flags & MMP_FLAG;
-      flags = 0;
-      if (d.flags & SUSPICIOUS_LINK_FLAG) flags = 1;
-      if (d.flags & UNPHYSICAL_LINK_FLAG) flags = 2;
+
+      d.mvir = fabs(d.mvir);
+      if (!(d.mvir>0)) continue;
+      if (!(d.rvir > 0))
+	d.rvir = cbrt(d.mvir / (4.0*M_PI*vir_density/3.0)) * 1000.0;
+      if (!(d.rs > 0)) d.rs = d.rvir / concentration(d.mvir, scale);
+
+      d.flags = 0;
+      if (mmp) d.flags |= MMP_FLAG;
+      if ((flags & 3)==1) d.flags |= SUSPICIOUS_LINK_FLAG;
+      if ((flags & 3)==2) d.flags |= UNPHYSICAL_LINK_FLAG;
+      if (dead) d.flags |= DEAD_HALO_FLAG;
+      add_halo(h, d);
     }
-
-      
-    d.mvir = fabs(d.mvir);
-    if (!(d.mvir>0)) continue;
-    if (!(d.rvir > 0))
-      d.rvir = cbrt(d.mvir / (4.0*M_PI*vir_density/3.0)) * 1000.0;
-    if (!(d.rs > 0)) d.rs = d.rvir / concentration(d.mvir, scale);
-
-    d.flags = 0;
-    if (mmp) d.flags |= MMP_FLAG;
-    if ((flags & 3)==1) d.flags |= SUSPICIOUS_LINK_FLAG;
-    if ((flags & 3)==2) d.flags |= UNPHYSICAL_LINK_FLAG;
-    if (dead) d.flags |= DEAD_HALO_FLAG;
-    add_halo(h, d);
-
-    if (min_mvir==0) min_mvir = d.mvir;
-    if (d.mvir < min_mvir) min_mvir = d.mvir;
-    if (d.mvir > max_mvir) max_mvir = d.mvir;
-    for (n=0; n<3; n++) if (d.pos[n] > box_size) box_size = d.pos[n];
+  }
+  else {
+    struct stat s;
+    assert(!fstat(fileno(input), &s));
+    int64_t num_inputs = s.st_size / (sizeof(struct tree_halo));
+    if (num_inputs * sizeof(struct tree_halo) != s.st_size) {
+      fprintf(stderr, "Error: file format in %s not recognized as %s!\n", filename, INPUT_FORMAT);
+      exit(1);
+    }
+    int64_t alloc_size = num_inputs+1000;    
+    h->halos = (struct tree_halo *)
+      check_realloc(h->halos,sizeof(struct tree_halo)*(old_halos+alloc_size), "Adding new halos.");
+    fread(h->halos+old_halos, sizeof(struct tree_halo), num_inputs, input);
+    h->num_halos += num_inputs;
   }
   fclose(input);
+
+  for (int64_t i=old_halos; i<h->num_halos; i++) {
+    mmp = h->halos[i].flags & MMP_FLAG;
+    flags = 0;
+    if (h->halos[i].flags & SUSPICIOUS_LINK_FLAG) flags |= 1;
+    if (h->halos[i].flags & UNPHYSICAL_LINK_FLAG) flags |= 2;
+    h->halos[i].flags = 0;
+    if (mmp) h->halos[i].flags |= MMP_FLAG;
+    if ((flags & 3)==1) h->halos[i].flags |= SUSPICIOUS_LINK_FLAG;
+    if ((flags & 3)==2) h->halos[i].flags |= UNPHYSICAL_LINK_FLAG;
+    if (dead) h->halos[i].flags |= DEAD_HALO_FLAG;
+    if (min_mvir==0) min_mvir = h->halos[i].mvir;
+    if (h->halos[i].mvir < min_mvir) min_mvir = h->halos[i].mvir;
+    if (h->halos[i].mvir > max_mvir) max_mvir = h->halos[i].mvir;
+    for (n=0; n<3; n++) if (h->halos[i].pos[n] > box_size) box_size = h->halos[i].pos[n];
+  }
 
   if (!BOX_WIDTH)
     box_size = (int) (box_size + 0.5);

@@ -215,13 +215,16 @@ void read_tree(char *filename) {
   char buffer[1024];
 
   SHORT_PARSETYPE;
-  #define NUM_INPUTS 23
+  #define NUM_INPUTS 34
   enum short_parsetype stypes[NUM_INPUTS] = 
     { F, D64, F, D64, D64,    //  #scale id desc_scale desc_id num_prog
       D64, D64, D64, D64,       //   pid upid desc_pid phantom 
       F, F, F, F, F,    //mvir orig_mvir rvir rs vrms 
       D64, F, F,          //mmp? scale_of_last_MM vmax 
-      F, F, F, F, F, F}; //x y z vx vy vz
+      F, F, F, F, F, F,    //x y z vx vy vz
+      F, F, F, F, //Jx Jy Jz Spin
+      D64, D64, D64, D64, D, D64, D64, //bfid, dfid, trid, ohid, snap, ncdfid, lpdfid
+    };
   enum parsetype types[NUM_INPUTS];
   void *data[NUM_INPUTS] = {&(h.scale), &(h.id), &(desc_scale),
                             &(descid), &(h.num_prog), &(h.pid),
@@ -229,8 +232,12 @@ void read_tree(char *filename) {
 			    &(h.mvir), &(h.orig_mvir), &(h.rvir), &(h.rs), &(h.vrms),
 			    &(h.mmp), &(h.scale_of_last_MM), &(h.vmax),
 			    &(h.pos[0]), &(h.pos[1]), &(h.pos[2]), 
-			    &(h.vel[0]), &(h.vel[1]), &(h.vel[2])};
-  
+                            &(h.vel[0]), &(h.vel[1]), &(h.vel[2]),
+                            &(h.J[0]), &(h.J[1]), &(h.J[2]), &h.spin,
+                            &h.breadth_first_id, &h.depth_first_id, &h.tree_root_id, 
+                            &h.orig_halo_id, &h.snap_num, &h.next_coprogenitor_depthfirst_id, 
+                            &h.last_progenitor_depthfirst_id,
+    };
 
   for (n=0; n<NUM_INPUTS; n++) types[n] = stypes[n];
   input = check_fopen(filename, "r");

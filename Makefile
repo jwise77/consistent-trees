@@ -23,7 +23,7 @@ clean:
 
 dist: .REMAKE
 	@perl -ne 'print "$$1\n" if (/VERSION\s*\"([^\"]+)/)' src/version.h > VERSION
-	cd ../ ; tar -czvf ctrees.tar.gz consistent_trees/Makefile consistent_trees/*.pl consistent_trees/*.cfg consistent_trees/*/*.[ch] consistent_trees/*/Makefile consistent_trees/*/*.pm consistent_trees/src/*/*.pm consistent_trees/README  consistent_trees/LICENSE consistent_trees/conversions consistent_trees/VERSION consistent_trees/CHANGELOG; mv ctrees.tar.gz consistent_trees
+	cd ../ ; tar -czvf ctrees.tar.gz consistent_trees/Makefile consistent_trees/*.pl consistent_trees/*.cfg consistent_trees/*/*.[ch] consistent_trees/*/Makefile consistent_trees/*/*.pm consistent_trees/src/*/*.pm consistent_trees/README.pdf  consistent_trees/README.md  consistent_trees/LICENSE consistent_trees/VERSION consistent_trees/CHANGELOG; mv ctrees.tar.gz consistent_trees
 
 versiondist:
 	rm -rf dist

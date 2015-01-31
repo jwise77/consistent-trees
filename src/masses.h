@@ -16,5 +16,7 @@ double concentration(double mvir, double scale);
 
 /* Returns the filling fraction as a function of r_h / r_s */
 float ff_cached(float x);
-
+void convert_mvir_to_delta(float mvir, float rvir, float rs, float scale,
+			   float delta, char type,
+			   float *mdelta, float *rdelta);
 #endif /* _MASSES_H_ */

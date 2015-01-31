@@ -383,6 +383,7 @@ inline void add_to_mass_bin(int64_t stat, float mass) {
   bin = log10f(mass);
   if (bin < counts_min_mass_bin || bin > counts_max_mass_bin) return;
   bin -= counts_min_mass_bin;
+#pragma omp atomic
   counts[stat][bin]++;
 }
 

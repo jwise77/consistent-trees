@@ -6,7 +6,7 @@
 int64_t id_to_index(struct halo_stash h, int64_t id);
 
 void read_outputs(float **output_scales, int64_t **outputs, int64_t *num_outputs);
-void gc_load_halos(char *filename, struct halo_stash *h, float scale);
+void gc_load_halos(char *filename, struct halo_stash *h, float scale, int64_t orig_data);
 void build_nodesc_halo_tree(struct tree_halo *h, int64_t num_h);
 
 float metric(struct tree_halo *h1, struct tree_halo *h2, float sigma_x, float sigma_v, float vmax_avg, float vmax_tol);

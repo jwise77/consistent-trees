@@ -19,7 +19,8 @@
 #endif /* NO_FORK */
 #include "version.h"
 
-#define MAX_FORKS 6
+#define MAX_MEMSIZE 250e9
+int64_t MAX_FORKS=6;
 
 struct halo_stash now={0}, evolved = {0}, dead = {0};
 float box_size=0;
@@ -49,7 +50,7 @@ int main(int argc, char **argv) {
 
   if (argc==1) {
     fprintf(stderr, "Consistent Trees, Version %s\n", TREE_VERSION);
-    fprintf(stderr, "(C) 2011-2013, Peter Behroozi.  See the LICENSE file for redistribution details.\n");
+    fprintf(stderr, "%s.  See the LICENSE file for redistribution details.\n", TREE_COPYRIGHT);
     fprintf(stderr, "Usage: %s options.cfg\n", argv[0]); exit(1);
   }
   if (argc>1) grav_config(argv[1], 1);
@@ -64,6 +65,10 @@ int main(int argc, char **argv) {
     snprintf(buffer, 1024, "%s/really_consistent_%"PRId64".list", OUTBASE, outputs[i]);
     clear_halo_stash(&now);
     load_halos(buffer, &now, output_scales[i], 0);
+    MAX_FORKS = (MAX_MEMSIZE / (now.num_halos*sizeof(struct tree_halo)*2.0)) - 1;
+    if (MAX_FORKS > 6) MAX_FORKS = 6;
+    if (MAX_FORKS < 1) MAX_FORKS = 1;
+    if (LIMITED_MEMORY) MAX_FORKS = 1;
     build_id_conv_list(&now);
     if (i==num_outputs - 1) last_output = 1;
     else last_output = 0;
@@ -160,6 +165,11 @@ void fork_and_print_halos(char *filename, struct halo_stash *h)
   wait_for_children(0);
   pid = fork();
   if (pid < 1) {
+    if (!pid) {
+      clear_halo_stash(&evolved);
+      if (h != &now) clear_halo_stash(&now);
+      if (h != &dead) clear_halo_stash(&dead);
+    }
     o = check_fopen(buffer, "w");
     print_halo(o, NULL);
     for (i=0; i<h->num_halos; i++) print_halo(o, h->halos + sort_order[i]);      

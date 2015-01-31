@@ -30,6 +30,7 @@ sub init {
 
 sub exact_time_to_scale {
     my $t = shift;
+    return (($t*3/2)**(2/3)) if ($omega_0 == 1);
     my $m = (sinh(1.5*$t*sqrt(1-$omega_0)))**2;
     return ((($omega_0*$m)/(1-$omega_0))**(1/3));
 }
