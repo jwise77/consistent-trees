@@ -5,6 +5,7 @@ use MultiThread;
 use Universe::Time;
 use MassConversions;
 use IO::File;
+use Scalar::Util;
 
 $MultiThread::threadlimit = 20;
 load_config();
@@ -17,7 +18,7 @@ open INPUT, "<", "$TREE_OUTBASE/$trees[0]";
 our $firstline = <INPUT>;
 chomp($firstline);
 my @elems = split(" ", $firstline);
-push @elems, qw/Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Mpeak_Scale Acc_Scale M4%_Scale/;
+push @elems, qw/Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Mpeak_Scale Acc_Scale First_Acc_Scale First_Acc_Mvir First_Acc_Vmax/;
 for (0..$#elems) {
     $elems[$_] =~ s/\(\d+\)$//;
     $elems[$_].="($_)";
@@ -139,7 +140,6 @@ sub process_tree {
     for $h (@halos) {
 	calc_mass_vmax_acc($h);
 	calc_halfmass($h);
-	calc_p04mass($h);
 	calc_accretion_rates($h);
 	$h->print();
     }
@@ -156,10 +156,14 @@ sub calc_mass_vmax_acc {
 	    $h->{vacc} = $h->{prog}{vacc};
 	    $h->{macc} = $h->{prog}{macc};
 	    $h->{acc_scale} = $h->{prog}{acc_scale};
+	    $h->{first_acc} = $h->{prog}{first_acc};
 	} else {
 	    $h->{vacc} = $h->{vmax};
 	    $h->{macc} = $h->{orig_mvir};
 	    $h->{acc_scale} = $h->{scale};
+	    $h->{first_acc} = $h;
+	    my $hpf = $h->{prog}{first_acc};
+	    $h->{first_acc} = $hpf if ($hpf and ($hpf->{id} != $h->{prog}{id}) and $hpf->{mpeak}*2.0 > $h->{orig_mvir});
 	}
 	$h->{vpeak} = max($h->{vmax}, $h->{prog}{vpeak});
 	$h->{mpeak} = max($h->{orig_mvir}, $h->{prog}{mpeak});
@@ -176,7 +180,9 @@ sub calc_mass_vmax_acc {
 	$h->{macc} = $h->{orig_mvir};
 	$h->{acc_scale} = $h->{scale};
 	$h->{mpeak_scale} = $h->{scale};
+	$h->{first_acc} = $h;
     }
+    Scalar::Util::weaken($h->{first_acc});
 }
 
 sub calc_halfmass {
@@ -196,40 +202,6 @@ sub calc_halfmass {
     }
     else {
 	$h->{halfmass} = $h->{scale};
-	return $h;
-    }
-}
-
-sub calc_p04mass {
-    no warnings 'recursion';
-    my $h = shift;
-    return if ($h->{p4seen});
-    $h->{p4seen} = 1;
-    if ($h->{prog}) {
-	my $hm = calc_p04mass($h->{prog});
-	my $hm2 = $hm;
-	while (defined($hm2 = $halos{$hm2->{desc_scale}}{$hm2->{descid}})) {
-	    last unless ($hm2->{orig_mvir} < 0.04*$h->{mpeak} or 
-		$hm2->{orig_mvir} < $MASS_RES_OK/8.0);
-	    $hm = $hm2 if ($hm2->{orig_mvir} > $hm->{orig_mvir});
-	}
-	my $zhalf = 1.0/$hm->{halfmass}-1.0;
-	my $z2 = 1.0/$hm->{scale} - 1.0;
-	my $mhalf = log($h->{mpeak})/log(10);
-	my $m2 = log($hm->{orig_mvir})/log(10);
-	if (abs($m2 - $mhalf) < 0.3) {
-	    $m2 = log($h->{mpeak})/log(10);
-	    $z2 = 1.0/$h->{mpeak_scale} - 1.0;
-	}
-	my $mw = $mhalf - 1.0969;
-	my $z4 = (abs($m2-$mhalf) > 0) ? 
-	    ($z2 + ($mw-$m2)*($z2-$zhalf)/($m2-$mhalf)) : (100);
-	$h->{p04mass} = 1.0/($z4+1);
-	$h->{p04mass} = 0.01 if ($h->{p04mass} < 0.01);
-	return($hm);
-    }
-    else {
-	$h->{p04mass} = $h->{scale};
 	return $h;
     }
 }
@@ -363,7 +335,7 @@ sub print {
     return unless (defined $h->{scale} and $h->{scale} > 0);
     _open_scale($h->{scale}) if (!exists($tree_outputs{$h->{scale}}));
     my $file = $tree_outputs{$h->{scale}};
-    $file->printf("%.4f %8s %.4f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %s %.5e %.5e %6f %6f %.4f %.3e %.3e %.3e %.3e %.3e %.3e %.3e %.3e\n",
+    $file->printf("%.4f %8s %.4f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %s %.5e %.5e %6f %6f %.4f %.3e %.3e %.3e %.3e %.3e %.3e %.3f %.3f %.3e %.3f\n",
     $h->{scale}, $h->{id}, $h->{desc_scale}, $h->{descid}, $h->{num_prog},
     $h->{pid}, $h->{upid}, $h->{desc_pid}, $h->{phantom},
     $h->{mvir}, $h->{orig_mvir}, $h->{rvir}, $h->{rs}, $h->{vrms},
@@ -372,6 +344,6 @@ sub print {
     $h->{vel}[0], $h->{vel}[1], $h->{vel}[2],
     $h->{J}[0], $h->{J}[1], $h->{J}[2], $h->{spin}, $h->{rest},
     $h->{macc}, $h->{mpeak}, $h->{vacc}, $h->{vpeak}, $h->{halfmass},
-    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{p04mass});
+    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{first_acc}{scale}, $h->{first_acc}{orig_mvir}, $h->{first_acc}{vmax});
 }
 
