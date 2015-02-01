@@ -245,7 +245,7 @@ simulations.
         #Option to limit memory usage; set to 1 if calculating merger tree for a large
         #(>2048^3 particles) box.  This turns off gzipping intermediate files and also
         #limits some parallelization to avoid having too many snapshots in memory.
-        LIMIT_MEMORY = 0
+        LIMITED_MEMORY = 0
     
     
     The other configuration options should generally be left alone unless you are
