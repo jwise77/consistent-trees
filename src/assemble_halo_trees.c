@@ -23,7 +23,7 @@ struct merger_halo *extra_halos = NULL;
 FILE **tree_inputs = NULL;
 struct merger_halo *halos = NULL;
 struct litehash *lh = NULL;
-int64_t num_halos=0,num_halos_output=0;
+int64_t num_halos=0, num_halos_output=0, num_trees_output = 0;
 float box_size, min_mvir, max_mvir;
 FILE *locations = NULL;
 
@@ -47,6 +47,7 @@ int main(int argc, char **argv)
     fprintf(stderr, "%s.  See the LICENSE file for redistribution details.\n", TREE_COPYRIGHT);
     fprintf(stderr, "Usage: %s options.cfg\n", argv[0]); exit(1); }
   read_outputs(&output_scales, &outputs, &num_outputs);
+  print_timing(_AHT, NULL);
 
   tree_header_offset = create_headers();
   /*tree_inputs = check_realloc(NULL, sizeof(struct cached_io *)*num_outputs,
@@ -69,6 +70,7 @@ int main(int argc, char **argv)
   input = tree_inputs[num_outputs-1];
 
   struct merger_halo halo;
+  int64_t last_timing_output = 0;
   while (read_halo_from_file(&halo, input, num_outputs-1)) {
     halo.scale = output_scales[num_outputs-1];
     halo.desc_scale = 0;
@@ -84,7 +86,15 @@ int main(int argc, char **argv)
     build_tree(halo.id, num_outputs-2);
     print_tree_halos(id);
     num_halos_output += num_halos;
+    num_trees_output++;
+    if (num_halos_output >= last_timing_output+1000000) {
+      timed_output(_AHT, "Wrote %"PRId64" trees (%"PRId64" halos).", 
+		   num_trees_output, num_halos_output);
+      last_timing_output = 1000000*((int64_t)(num_halos_output/1000000));
+    }
   }
+  timed_output(_AHT, "Wrote %"PRId64" trees (%"PRId64" halos).",
+	       num_trees_output, num_halos_output);
 
   //Print num_tree counts
   for (i=0; i<BOX_DIVISIONS; i++) {
@@ -99,7 +109,8 @@ int main(int argc, char **argv)
     }
   }
   fclose(locations);
-
+  timed_output(_AHT, "Successfully finished.");
+  close_timing_log();
   return 0;
 }
 

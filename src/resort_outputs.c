@@ -54,6 +54,9 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Usage: %s options.cfg\n", argv[0]); exit(1);
   }
   if (argc>1) grav_config(argv[1], 1);
+  print_timing(_RO, NULL);
+
+
   read_outputs(&output_scales, &outputs, &num_outputs);
   gen_ff_cache();
   clear_halo_stash(&now);
@@ -62,6 +65,8 @@ int main(int argc, char **argv) {
   forest_now = new_inthash();
   
   for (i = num_outputs-1; i>=0; i--) {
+    timed_output(_RO, "** Starting work on snapshot %"PRId64" (a=%f)...", outputs[i], output_scales[i]);
+    timed_output(_RO, "Loading snapshot %"PRId64"...", outputs[i]);
     snprintf(buffer, 1024, "%s/really_consistent_%"PRId64".list", OUTBASE, outputs[i]);
     clear_halo_stash(&now);
     load_halos(buffer, &now, output_scales[i], 0);
@@ -73,11 +78,13 @@ int main(int argc, char **argv) {
     if (i==num_outputs - 1) last_output = 1;
     else last_output = 0;
     if (last_output) {
+      timed_output(_RO, "Setting up forests...");
       for (j=0; j<now.num_halos; j++) {
 	ih_setint64(forest, now.halos[j].id, now.halos[j].id);
 	ih_setint64(forest_now, now.halos[j].id, now.halos[j].id);
       }
     } else {
+      timed_output(_RO, "Updating forests...");
       free_inthash(forest_evolved);
       forest_evolved = forest_now;
       forest_now = new_inthash();
@@ -102,21 +109,32 @@ int main(int argc, char **argv) {
     sort_order = check_realloc(sort_order, sizeof(int64_t)*now.num_halos,
 			       "Allocating sort order for halos.");
     for (j=0; j<now.num_halos; j++) sort_order[j] = j;
+    timed_output(_RO, "Resorting halos...");
     resort_halos(last_output);
+    timed_output(_RO, "Forking and writing halos...");
+    snprintf(buffer, 1024, "%s/really_consistent_%"PRId64".list", OUTBASE, outputs[i]);
     fork_and_print_halos(buffer, &now);
 
+    timed_output(_RO, "Loading dead halos...");
     clear_halo_stash(&dead);
     snprintf(buffer, 1024, "%s/really_dead_%"PRId64".list", OUTBASE, outputs[i]);
     load_halos(buffer, &dead, output_scales[i], 1);
     sort_order = check_realloc(sort_order, sizeof(int64_t)*dead.num_halos,
 			       "Allocating sort order for halos.");
     for (j=0; j<dead.num_halos; j++) sort_order[j] = j;
+    timed_output(_RO, "Resorting dead halos...");
     qsort(sort_order, dead.num_halos, sizeof(int64_t), sort_dead_by_mvir);
+    timed_output(_RO, "Forking and writing dead halos...");
+    snprintf(buffer, 1024, "%s/really_dead_%"PRId64".list", OUTBASE, outputs[i]);
     fork_and_print_halos(buffer, &dead);
+    timed_output(_RO, "** Done with snapshot %"PRId64".", outputs[i]);
   }
   wait_for_children(1);
 
+  timed_output(_RO, "Printing forests...");
   print_forests();
+  timed_output(_RO, "Successfully finished.");
+  close_timing_log();
   return 0;
 }
 

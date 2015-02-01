@@ -51,6 +51,7 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Usage: %s options.cfg\n", argv[0]); exit(1);
   }
   grav_config(argv[1], 0);
+  print_timing(_FPAC, NULL);
 
   init_cosmology(Om, Ol, h0);
   init_time_table(Om, h0);
@@ -58,6 +59,7 @@ int main(int argc, char **argv) {
   read_outputs(&output_scales, &outputs, &num_outputs);
 
   clear_halo_stash(&next);
+  timed_output(_FPAC, "Loading snapshot %"PRId64"...", outputs[0]);
   snprintf(buffer, 1024, "%s/consistent_%"PRId64".list", OUTBASE, outputs[0]);
   load_halos(buffer, &next, output_scales[0], 0);
   snprintf(buffer, 1024, "%s/dead_%"PRId64".list", OUTBASE, outputs[0]);
@@ -73,11 +75,13 @@ int main(int argc, char **argv) {
       (i<num_outputs-1) ? 2 : 3;
     a1 = output_scales[i];
     a2 = (stage < 3) ? output_scales[i+1] : a1;
+    timed_output(_FPAC, "** Starting work for snapshot %"PRId64" (a=%f)...", outputs[i], a1);
 
     clear_halo_stash(&now);
     now = next;
     zero_halo_stash(&next);
     if (stage < 3) {
+      timed_output(_FPAC, "Loading snapshot %"PRId64" for comparison...", outputs[i+1]);
       snprintf(buffer, 1024, "%s/consistent_%"PRId64".list", OUTBASE, outputs[i+1]);
       load_halos(buffer, &next, a2, 0);
       snprintf(buffer, 1024, "%s/dead_%"PRId64".list", OUTBASE, outputs[i+1]);
@@ -86,29 +90,42 @@ int main(int argc, char **argv) {
     }
 
     cleanup_clear_stats();
+    timed_output(_FPAC, "Cleaning up excess phantom halos...");
     cleanup_phantoms(a1, a2, stage);
 
 
     halo_order = check_realloc(halo_order, sizeof(int64_t)*now.num_halos, "Halo Order");
     
+    timed_output(_FPAC, "Building halo tree...");
     for (j=0; j<now.num_halos; j++) halo_order[j] = j;
     fast3tree_rebuild(halo_tree, now.num_halos, now.halos);
     IF_PERIODIC _fast3tree_set_minmax(halo_tree, 0, box_size);
     build_id_conv_list(&now);
+    timed_output(_FPAC, "Deciding halo processing order...");
     qsort(halo_order, now.num_halos, sizeof(int64_t), sort_halo_order);
+    timed_output(_FPAC, "Finding parents...");
     find_parents();
+    timed_output(_FPAC, "Removing halos with short tracks...");
     cleanup_short_tracks(a1, a2, stage, i, num_outputs);
+    timed_output(_FPAC, "Refinding parents...");
     find_parents();
-    if (stage < 3) cleanup_find_new_descendants(a1, a2);
+    if (stage < 3) {
+      timed_output(_FPAC, "Finding new descendants for halos that need them...");
+      cleanup_find_new_descendants(a1, a2);
+    }
     //cleanup_no_progenitors(a1, stage);
+    timed_output(_FPAC, "Refinding parents...");
     find_parents();
 
+    timed_output(_FPAC, "Flagging major mergers...");
     detect_major_mergers(a1);
     if (stage < 3) tag_children_of_centrals(a1);
 
     fclose(logfile);
+    timed_output(_FPAC, "Translating halo IDs...");
     translate_ids(stage);
 
+    timed_output(_FPAC, "Forking and writing halos for snapshot %"PRId64"...", outputs[i]);
     pid = fork();
     if (pid < 1) {
       snprintf(buffer, 1024, "%s/cleanup_logfile_%"PRId64".list", OUTBASE, outputs[i]);
@@ -124,8 +141,11 @@ int main(int argc, char **argv) {
     }
 
     while (wait4(-1, &stat_loc, WNOHANG, 0)>0);
+    timed_output(_FPAC, "** Done with snapshot %"PRId64".", outputs[i]);
   }
   while (wait4(-1, &stat_loc, 0, 0)>0);
+  timed_output(_FPAC, "Successfully finished.");
+  close_timing_log();
   return 0;
 }
 

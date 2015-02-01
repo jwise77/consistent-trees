@@ -48,6 +48,7 @@ int main(int argc, char **argv) {
   int stat_loc;
   int64_t full_outputs = 0;
 
+
   if (argc==1) {
     fprintf(stderr, "Consistent Trees, Version %s\n", TREE_VERSION);
     fprintf(stderr, "%s.  See the LICENSE file for redistribution details.\n", TREE_COPYRIGHT);
@@ -55,6 +56,7 @@ int main(int argc, char **argv) {
   }
   if (argc>1) grav_config(argv[1], 1);
   if (argc>2) restart_number = atoi(argv[2]);
+  print_timing(_GC, NULL);
 
   init_cosmology(Om, 1.0-Om, h0);
   init_time_table(Om, h0);
@@ -78,6 +80,7 @@ int main(int argc, char **argv) {
   {
     a1 = output_scales[i];
     a2 = output_scales[i+1];
+    timed_output(_GC, "** Starting work on snapshot %"PRId64" (a=%f)...", outputs[i], a1);
 
     //Decide whether to output full info:
     if (!(((num_outputs-2)-i)%10)) tidal_extra_range = full_outputs = 1;
@@ -85,6 +88,7 @@ int main(int argc, char **argv) {
 
     //Gravitationally evolve halos at the next timestep to their
     // positions at the current timestep
+    timed_output(_GC, "Evolving halos to previous timestep...");
     evolve_halos(a2, a1, &evolved);
     build_id_conv_list(&evolved);
     snprintf(buffer, 1024, "%s/evolved_%"PRId64".list", OUTBASE, outputs[i]);    
@@ -99,10 +103,12 @@ int main(int argc, char **argv) {
 
     //Load halos at current timestep
     max_mvir = min_mvir = 0;
+    timed_output(_GC, "Loading snapshot %"PRId64" for comparison...", outputs[i]);
     snprintf(buffer, 1024, "%s/out_%"PRId64".list%s", INBASE, outputs[i],
 	     ((!strcasecmp(INPUT_FORMAT, "BINARY")) ? ".bin" : ""));
     clear_halo_stash(&now);
     gc_load_halos(buffer, &now, a1, 1);
+    timed_output(_GC, "Calculating tidal forces...");
     calc_tidal_forces(&now, a1, a2);
     for (j=0; j<evolved.num_halos; j++) {
       if (evolved.halos[j].mvir > max_mvir) max_mvir = evolved.halos[j].mvir;
@@ -111,52 +117,73 @@ int main(int argc, char **argv) {
     clear_stats();
 
     //Mark halos which have no mass or vmax as dead.
+    timed_output(_GC, "Removing halos with M=0 or Vmax=0...");
     mark_unphysical_halos(a1);
 
     //Build most-massive progenitor links
+    timed_output(_GC, "Building MMP links...");
     build_mmp_list(1, a1, a2);
 
     //Build metric statistics
     if (full_outputs) {
+      timed_output(_GC, "Printing full tidal forces...");
       turn_on_full_metric_output(outputs[i], a1, a2);
       print_tidal_forces(outputs[i], a1, &now, &evolved);
     }
 
+    timed_output(_GC, "Breaking non-MMP links...");
     break_non_mmp_links(a1, a2);
+    timed_output(_GC, "Comparing predicted evolution to actual halos...");
     calc_metric_stats(outputs[i], a1, a2);
 
     //Break links which are gravitationally inconsistent
+    timed_output(_GC, "Breaking gravitationally inconsistent links...");
     break_spurious_links(a1, a2);
 
     //Find links which are gravitationally consistent, if possible
+    timed_output(_GC, "Calculating halo processing order...");
     sort_process_list_by_vmax_evolved();
+    timed_output(_GC, "Fixing halos without progenitors (stage 1)...");
     fix_halos_without_progenitors(a1, a2, 1);
+    timed_output(_GC, "Fixing halos without progenitors (stage 2)...");
     fix_halos_without_progenitors(a1, a2, 2);
+    timed_output(_GC, "Fixing halos without progenitors (stage 3)...");
     fix_halos_without_progenitors(a1, a2, 3);
+    timed_output(_GC, "Fixing halos without descendants...");
     fix_halos_without_descendants(a1, a2);
 
     //Mark halos which still have no descendants as dead halos
+    timed_output(_GC, "Marking halos with no descendants as dead...");
     mark_dead_halos(a1);
 
     //Create phantom halos for halos which have no progenitors
+    timed_output(_GC, "Creating phantom halos...");
     create_phantom_progenitors(a1, a2);
 
     //Regenerate most-massive progenitor links, and
     //recheck to make sure that all non-dead halos have descendants.
+    timed_output(_GC, "Rebuilding MMP list and tagging major mergers...");
     build_mmp_list(2, a1, a2);
     tag_major_mergers();
 
     //Remove tracks with too many phantom halos
+    timed_output(_GC, "Removing halos with too many phantoms...");
     calculate_tracking_stats(a1, a2);
 
+    timed_output(_GC, "Recalculating output order...");
     calculate_new_output_order();
+    timed_output(_GC, "Calculating stats for halos added/removed...");
     count_good_halos(&now);
     print_stats(outputs[i]);
+    timed_output(_GC, "Writing revised halo lists...");
     copy_halos_to_evolved(outputs[i], (i < (num_outputs - 
 				  PADDING_TIMESTEPS - 1)) ? 1 : 0);
     while (wait4(-1, &stat_loc, WNOHANG, 0)>0);
+    timed_output(_GC, "** Done with snapshot %"PRId64".", outputs[i]);
   }
   while (wait4(-1, &stat_loc, 0, 0)>0);
+  timed_output(_GC, "Successfully finished.");
+  close_timing_log();
   return 0;
 }
 
@@ -548,6 +575,7 @@ void initialize_last_timestep(int64_t last_output_num, float scale)
 {
   char buffer[1024];
   int64_t i;
+  timed_output(_GC, "Loading snapshot %"PRId64"...", last_output_num);
   snprintf(buffer, 1024, "%s/out_%"PRId64".list%s", INBASE, last_output_num,
 	   ((!strcasecmp(INPUT_FORMAT, "BINARY")) ? ".bin" : ""));
   gc_load_halos(buffer, &now, scale, 1);
@@ -564,6 +592,7 @@ void initialize_last_timestep(int64_t last_output_num, float scale)
 void regen_output_order(int64_t output_num, float scale) {
   char buffer[1024];
   int64_t i;
+  timed_output(_GC, "Reloading snapshot %"PRId64"...", output_num);
   snprintf(buffer, 1024, "%s/consistent_%"PRId64".list", OUTBASE, output_num);
   gc_load_halos(buffer, &evolved, scale, 0);
   output_order = check_realloc(output_order, evolved.num_halos*sizeof(int64_t), "halo output order");

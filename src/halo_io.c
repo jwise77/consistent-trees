@@ -5,6 +5,7 @@
 #include <inttypes.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <time.h>
 #include "gravitational_consistency.h"
 #include "masses.h"
 #include "check_syscalls.h"
@@ -12,6 +13,29 @@
 
 extern float min_mvir, max_mvir;
 extern float box_size;
+FILE *timing_file = NULL;
+int64_t timing_start = 0;
+
+void print_timing(char *prog, char *info) {
+  char buffer[1024];
+  if (!timing_file) {
+    snprintf(buffer, 1024, "%s/timing.log", OUTBASE);
+    timing_file = check_fopen(buffer, "a");
+    timing_start = time(NULL);
+    time_t t = timing_start;
+    fprintf(timing_file, "%s started at %s", prog, ctime(&t));
+    fflush(timing_file);
+  }
+  if (!info) return;
+  fprintf(timing_file, "[%6"PRId64"s] %s\n", (int64_t)time(NULL)-timing_start, info);
+  fflush(timing_file);
+}
+
+void close_timing_log(void) {
+  fprintf(timing_file, "\n");
+  fclose(timing_file);
+}
+
 
 void gzip_file(char *filename) {
   char buffer[1024];
