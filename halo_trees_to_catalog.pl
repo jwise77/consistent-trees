@@ -18,7 +18,8 @@ open INPUT, "<", "$TREE_OUTBASE/$trees[0]";
 our $firstline = <INPUT>;
 chomp($firstline);
 my @elems = split(" ", $firstline);
-push @elems, qw/Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Mpeak_Scale Acc_Scale First_Acc_Scale First_Acc_Mvir First_Acc_Vmax/;
+push @elems, qw/Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Mpeak_Scale Acc_Scale First_Acc_Scale First_Acc_Mvir First_Acc_Vmax Vmax@Mpeak/;
+
 for (0..$#elems) {
     $elems[$_] =~ s/\(\d+\)$//;
     $elems[$_].="($_)";
@@ -37,8 +38,10 @@ $firstline .= "#            Inst: instantaneous; 100Myr: averaged over past 100M
 $firstline .= "#            X*Tdyn: averaged over past X*virial dynamical time.\n";
 $firstline .= "#            Mpeak: Growth Rate of Mpeak, averaged from current z to z+0.5\n";
 $firstline .= "#Mpeak_Scale: Scale at which Mpeak was reached.\n";
-$firstline .= "#Acc_Scale: Scale at which satellites were accreted.\n";
-$firstline .= "#M4%_Scale: Scale at which halo had 4% of its peak mass.\n";
+$firstline .= "#Acc_Scale: Scale at which satellites were (last) accreted.\n";
+$firstline .= "#First_Acc_Scale: Scale at which current and former satellites first passed through a larger halo.\n";
+$firstline .= "#First_Acc_(Mvir|Vmax): Mvir and Vmax at First_Acc_Scale.\n";
+$firstline .= "#Vmax\@Mpeak: Halo Vmax at the scale at which Mpeak was reached.\n";
 
 
 opendir DIR, $HLIST_OUTBASE;
@@ -166,15 +169,20 @@ sub calc_mass_vmax_acc {
 	    $h->{first_acc} = $hpf if ($hpf and ($hpf->{id} != $h->{prog}{id}) and $hpf->{mpeak}*2.0 > $h->{orig_mvir});
 	}
 	$h->{vpeak} = max($h->{vmax}, $h->{prog}{vpeak});
-	$h->{mpeak} = max($h->{orig_mvir}, $h->{prog}{mpeak});
-	$h->{mpeak_scale} = ($h->{mpeak} == $h->{prog}{mpeak}) ?
-	    $h->{prog}{mpeak_scale} : $h->{scale};
+	$h->{mpeak_scale} = $h->{prog}{mpeak_scale};
+	$h->{vmpeak} = $h->{prog}{vmpeak};
+	if ($h->{orig_mvir} > $h->{prog}{mpeak}) {
+	    $h->{mpeak} = $h->{orig_mvir};
+	    $h->{mpeak_scale} = $h->{scale};
+	    $h->{vmpeak} = $h->{vmax};
+	}
 
 	#Vpeak / Mpeak *before* accretion
 	#$h->{vpeak} = max($h->{vacc}, $h->{prog}{vpeak});
 	#$h->{mpeak} = max($h->{macc}, $h->{prog}{mpeak});
     } else {
 	$h->{vpeak} = $h->{vmax};
+	$h->{vmpeak} = $h->{vmax};
 	$h->{vacc} = $h->{vmax};
 	$h->{mpeak} = $h->{orig_mvir};
 	$h->{macc} = $h->{orig_mvir};
@@ -335,7 +343,7 @@ sub print {
     return unless (defined $h->{scale} and $h->{scale} > 0);
     _open_scale($h->{scale}) if (!exists($tree_outputs{$h->{scale}}));
     my $file = $tree_outputs{$h->{scale}};
-    $file->printf("%.4f %8s %.4f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %s %.5e %.5e %6f %6f %.4f %.3e %.3e %.3e %.3e %.3e %.3e %.3f %.3f %.3e %.3f\n",
+    $file->printf("%.4f %8s %.4f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %s %.5e %.5e %6f %6f %.4f %.3e %.3e %.3e %.3e %.3e %.3e %.3f %.3f %.3e %.3f %.3f\n",
     $h->{scale}, $h->{id}, $h->{desc_scale}, $h->{descid}, $h->{num_prog},
     $h->{pid}, $h->{upid}, $h->{desc_pid}, $h->{phantom},
     $h->{mvir}, $h->{orig_mvir}, $h->{rvir}, $h->{rs}, $h->{vrms},
@@ -344,6 +352,6 @@ sub print {
     $h->{vel}[0], $h->{vel}[1], $h->{vel}[2],
     $h->{J}[0], $h->{J}[1], $h->{J}[2], $h->{spin}, $h->{rest},
     $h->{macc}, $h->{mpeak}, $h->{vacc}, $h->{vpeak}, $h->{halfmass},
-    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{first_acc}{scale}, $h->{first_acc}{orig_mvir}, $h->{first_acc}{vmax});
+    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{first_acc}{scale}, $h->{first_acc}{orig_mvir}, $h->{first_acc}{vmax}, $h->{vmpeak});
 }
 
