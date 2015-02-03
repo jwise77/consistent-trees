@@ -171,6 +171,7 @@ sub calc_mass_vmax_acc {
 	$h->{vpeak} = max($h->{vmax}, $h->{prog}{vpeak});
 	$h->{mpeak_scale} = $h->{prog}{mpeak_scale};
 	$h->{vmpeak} = $h->{prog}{vmpeak};
+	$h->{mpeak} = $h->{prog}{mpeak};
 	if ($h->{orig_mvir} > $h->{prog}{mpeak}) {
 	    $h->{mpeak} = $h->{orig_mvir};
 	    $h->{mpeak_scale} = $h->{scale};
