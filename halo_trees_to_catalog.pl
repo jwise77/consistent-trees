@@ -76,10 +76,10 @@ foreach my $scale (keys %files) {
     my $buffer;
     for (sort @to_combine) {
 	open INPUT, "<", $_;
-	while (($n = read(INPUT, $buffer, 1000000))>0) {
+	while (($n = read(INPUT, $buffer, 1000000))) {
 	    print OUTPUT $buffer;
 	}
-	die "Failed to read from $_!\n" if ($n<0);
+	die "Failed to read from $_ [$!]!\n" unless (defined $n);
     }
     close OUTPUT;
     unlink @to_combine;
@@ -169,6 +169,7 @@ sub calc_mass_vmax_acc {
 	    $h->{first_acc} = $hpf if ($hpf and ($hpf->{id} != $h->{prog}{id}) and $hpf->{mpeak}*2.0 > $h->{orig_mvir});
 	}
 	$h->{vpeak} = max($h->{vmax}, $h->{prog}{vpeak});
+
 	$h->{mpeak_scale} = $h->{prog}{mpeak_scale};
 	$h->{vmpeak} = $h->{prog}{vmpeak};
 	$h->{mpeak} = $h->{prog}{mpeak};
