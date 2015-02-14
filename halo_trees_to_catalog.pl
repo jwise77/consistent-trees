@@ -71,11 +71,12 @@ foreach my $scale (keys %files) {
     next unless (MultiThread::ForkChild());
     my @to_combine = @{$files{$scale}};
     chdir $HLIST_OUTBASE;
-    open OUTPUT, ">", "hlist_$scale.list";
+    open OUTPUT, ">", "hlist_$scale.list" or 
+	die "Couldn't open output file hlist_$scale.list! [$!]\n";;
     print OUTPUT $firstline;
     my $buffer;
     for (sort @to_combine) {
-	open INPUT, "<", $_;
+	open INPUT, "<", $_ or die "Couldn't open input file $_! [$!]\n";
 	while (($n = read(INPUT, $buffer, 1000000))) {
 	    print OUTPUT $buffer;
 	}
