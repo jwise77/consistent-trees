@@ -521,7 +521,7 @@ void build_tree(int64_t id, int64_t inputnum) {
 void print_tree_halo(struct merger_halo *h, FILE *output) {
   int64_t next_cop_df = h->next_coprogenitor_df;
   if (next_cop_df > -1) next_cop_df += num_halos_output;
-  fprintf(output, " %.4f %8"PRId64" %.4f %8"PRId64" %6"PRId64" %8"PRId64" %8"PRId64" %8"PRId64" %2"PRId64" %.5e %.5e %6f %6f %6f %2"PRId64" %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64,
+  fprintf(output, " %.5f %8"PRId64" %.5f %8"PRId64" %6"PRId64" %8"PRId64" %8"PRId64" %8"PRId64" %2"PRId64" %.5e %.5e %6f %6f %6f %2"PRId64" %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64,
 	  h->scale, h->id, h->desc_scale, h->descid, h->num_prog,
 	  h->pid, h->upid, h->desc_pid, h->phantom,
 	  h->mvir, h->orig_mvir, h->rvir, h->rs, h->vrms,

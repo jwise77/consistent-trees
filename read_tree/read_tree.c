@@ -9,7 +9,7 @@
 #include "check_syscalls.h"
 #include "read_tree.h"
 
-#define SCALE_FACTOR_MUL 10000
+#define SCALE_FACTOR_MUL 100000
 struct halo_tree halo_tree = {0};
 struct halo_list all_halos = {0};
 

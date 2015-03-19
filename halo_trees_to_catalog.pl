@@ -346,7 +346,7 @@ sub print {
     return unless (defined $h->{scale} and $h->{scale} > 0);
     _open_scale($h->{scale}) if (!exists($tree_outputs{$h->{scale}}));
     my $file = $tree_outputs{$h->{scale}};
-    $file->printf("%.4f %8s %.4f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %s %.5e %.5e %6f %6f %.4f %.3e %.3e %.3e %.3e %.3e %.3e %.3f %.3f %.3e %.3f %.3f\n",
+    $file->printf("%.5f %8s %.5f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %s %.5e %.5e %6f %6f %.4f %.3e %.3e %.3e %.3e %.3e %.3e %.3f %.3f %.3e %.3f %.3f\n",
     $h->{scale}, $h->{id}, $h->{desc_scale}, $h->{descid}, $h->{num_prog},
     $h->{pid}, $h->{upid}, $h->{desc_pid}, $h->{phantom},
     $h->{mvir}, $h->{orig_mvir}, $h->{rvir}, $h->{rs}, $h->{vrms},
