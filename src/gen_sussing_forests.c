@@ -12,6 +12,7 @@
 #include "halo_io.h"
 #include "resort_outputs.h"
 #include "inthash.h"
+#include "universe_time.h"
 #ifndef NO_FORK
 #include <sys/wait.h>
 #include <sys/types.h>
@@ -21,6 +22,7 @@
 
 #define forest_id tidal_id
 #define CRITICAL_DENSITY 2.77459457e11 // 3H^2/8piG in (Msun / h) / (Mpc / h)^3
+#define NIFTYOFFSET ((int64_t)1000000000000)
 
 //#define FIX_BOLSHOI_SPIN
 
@@ -36,7 +38,8 @@ int64_t children = 0;
 void write_ahf_halos(struct halo_stash *h, int64_t onum, float scale);
 void wait_for_children(int all);
 int sort_by_forest(const void *a, const void *b);
-void load_forests(struct halo_stash *h);
+void load_forests(struct halo_stash *h, int64_t onum);
+void reindex_halos(struct halo_stash *h, int onum);
 
 struct id_num {
   int64_t id, num;
@@ -59,13 +62,30 @@ int main(int argc, char **argv) {
   gen_ff_cache();
   clear_halo_stash(&now);
 
+  init_time_table(Om, h0);
+
   snprintf(buffer, 1024, "%s/really_consistent_%"PRId64".list", OUTBASE, outputs[num_outputs-1]);
   load_halos(buffer, &now, output_scales[num_outputs-1], 0);
+  reindex_halos(&now, num_outputs-1);
   build_id_conv_list(&now);
-  load_forests(&now);
+  load_forests(&now, num_outputs-1);
   qsort(now.halos, now.num_halos, sizeof(struct tree_halo), sort_by_forest);
   build_id_conv_list(&now);
   write_ahf_halos(&now, num_outputs-1, output_scales[num_outputs-1]);
+
+  snprintf(buffer, sizeof buffer, "%s/sussing_index.lst", TREE_OUTBASE);
+  FILE *sindex = check_fopen(buffer, "w");
+  fprintf(sindex, "#%11s %12s %12s %12s %12s %s\n", "snapnum", "a", "z", "t(t0)", "t(year)", "file");
+  double t0 = scale_to_years(0.0);
+  for (i=0; i<num_outputs; i++) {
+      double t = t0 - scale_to_years(output_scales[i]);
+      snprintf(buffer, sizeof buffer, "sussing_%03"PRId64".z%.3f.AHF_halos",
+	       i, 1.0/output_scales[i]-1.0);
+      fprintf(sindex, "%12"PRId64" %12f %12f %12f %12e %s\n",
+	      i, output_scales[i], 1.0/output_scales[i] - 1.0,
+	      t/t0, -t, buffer);
+  }
+  fclose(sindex);
 
   for (i = num_outputs-1; i>=0; i--) {
     clear_halo_stash(&evolved);
@@ -75,6 +95,7 @@ int main(int argc, char **argv) {
     if (i>0) {
       snprintf(buffer, 1024, "%s/really_consistent_%"PRId64".list", OUTBASE, outputs[i-1]);
       load_halos(buffer, &now, output_scales[i-1], 0);
+      reindex_halos(&now, i-1);
       build_id_conv_list(&now);
       for (j=0; j<now.num_halos; j++) {
 	int64_t desc_index = id_to_index(evolved, now.halos[j].descid);
@@ -116,8 +137,9 @@ int main(int argc, char **argv) {
     }
     fclose(output);
   }
-
+  
   FILE **inputs = check_realloc(NULL, num_outputs*sizeof(FILE *), "Fh");
+
   for (i=0; i<num_outputs; i++) {
     snprintf(buffer, 1024, "%s/sussing_%"PRId64".list", TREE_OUTBASE, i);
     inputs[i] = check_fopen(buffer, "r");
@@ -230,6 +252,7 @@ void write_ahf_halos(struct halo_stash *h, int64_t onum, float scale) {
 #endif
     float cNFW = 10;
     if (th->rs > 0) cNFW = radius / th->rs;
+
     fprintf(output, "%"PRId64" %"PRId64" %"PRId64" %e %"PRId64" %.6f %.6f %.6f %f %f %f %f %f 2e38 2e38 2e38 %f 2e38 %f 2e38 %f %f %f %f %f\n", th->id, upid, num_subs[i], mass, th->np, th->pos[0]*1e3, th->pos[1]*1e3, th->pos[2]*1e3, th->vel[0], th->vel[1], th->vel[2], radius, th->rs*2.1626, th->vmax, th->vrms, spin, L[0], L[1], L[2], cNFW);
   }
   fclose(output);
@@ -243,7 +266,7 @@ int sort_ascending(const void *a, const void *b) {
   return 1;
 }
 
-void load_forests(struct halo_stash *h) {
+void load_forests(struct halo_stash *h, int64_t onum) {
   int64_t key, val;
   char buffer[1024];
   snprintf(buffer, 1024, "%s/forests.list", TREE_OUTBASE);
@@ -255,6 +278,8 @@ void load_forests(struct halo_stash *h) {
 
   while (fgets(buffer, 1024, input)) {
     if (sscanf(buffer, "%"SCNd64" %"SCNd64, &key, &val) != 2) continue;
+    key += NIFTYOFFSET*onum;
+    val += NIFTYOFFSET*onum;
     int64_t idx = id_to_index(*h, key);
     assert(idx > -1);
     h->halos[idx].forest_id = val;
@@ -308,3 +333,14 @@ void zero_halo_stash(struct halo_stash *h) {
   h->max_id = h->min_id = h->num_halos = 0;
 }
 
+void reindex_halos(struct halo_stash *h, int onum)
+{
+    int64_t n;
+    for (n=0; n<h->num_halos; n++) {
+	h->halos[n].id += onum*NIFTYOFFSET;
+	if (h->halos[n].upid >= 0)
+	    h->halos[n].upid += onum*NIFTYOFFSET;
+	if (h->halos[n].descid >= 0)
+	    h->halos[n].descid += (onum+1)*NIFTYOFFSET;
+    }
+}

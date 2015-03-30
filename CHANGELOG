@@ -1,3 +1,6 @@
+v1.01:
+*) Patch from Julian Onions to make the Sussing Merger Trees output format better conform to the NIFTy specification.
+
 v1.0:
 *) Major update to improve parallelization, especially for the first gravitational consistency stage.
 *) Fixed pair of rare bugs that connected unrelated halos together in the same tree; this affected 5 links per million (thanks to Kristin Riebe and Christoph Behrens for finding).  However, the maximum forest size should now be more manageable in many cases.
