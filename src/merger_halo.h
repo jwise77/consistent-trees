@@ -15,7 +15,7 @@ struct merger_halo {
   float vmax_peak, vmax_acc, mvir_peak, mvir_acc;
   int64_t np, num_prog;
   int64_t breadthfirst_order, depthfirst_order, treeroot_id;
-  int64_t last_progenitor_df, next_coprogenitor_df, snapnum;
+  int64_t last_progenitor_df, next_coprogenitor_df, mainleaf_df, snapnum;
   double extra_params[MAX_EXTRA_PARAMS];
 };
 

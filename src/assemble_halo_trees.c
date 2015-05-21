@@ -166,6 +166,7 @@ void calc_depthfirst_order(void) {
 void calc_progenitor_links(void) {
   int64_t i;
   for (i=0; i<num_halos; i++) {
+    halos[i].mainleaf_df = -1;
     if ((i+1 < num_halos) && (halos[i+1].descid == halos[i].descid))
       halos[i].next_coprogenitor_df = halos[i+1].depthfirst_order;
     else
@@ -176,7 +177,10 @@ void calc_progenitor_links(void) {
     struct merger_halo *desc=lh_getval2(lh,&(halos[i].desc_scale),&(halos[i].descid));
     if (desc && desc->last_progenitor_df < halos[i].last_progenitor_df)
       desc->last_progenitor_df = halos[i].last_progenitor_df;
+    if (halos[i].mainleaf_df < 0) halos[i].mainleaf_df = halos[i].depthfirst_order;
+    if (desc && halos[i].mmp) desc->mainleaf_df = halos[i].mainleaf_df;
   }
+  if (halos[0].mainleaf_df < 0) halos[0].mainleaf_df = halos[0].depthfirst_order;
 }
 
 void print_tree_halos(int64_t file_id) {
@@ -193,7 +197,7 @@ void print_tree_halos(int64_t file_id) {
   calc_mmp();
   smooth_mass();
   conserve_mass();
-  calc_mmp();
+  //calc_mmp();
 
   fprintf(tree_outputs[file_id], "#tree %"PRId64"\n", halos[0].id);
   i = file_id/(BOX_DIVISIONS*BOX_DIVISIONS);
@@ -320,7 +324,7 @@ int64_t create_headers(void) {
 	id = i*BOX_DIVISIONS*BOX_DIVISIONS + j*BOX_DIVISIONS + k;
 	output = tree_outputs[id] = check_fopen(buffer, "w");
 	fprintf(output,
-		"#scale(0) id(1) desc_scale(2) desc_id(3) num_prog(4) pid(5) upid(6) desc_pid(7) phantom(8) sam_mvir(9) mvir(10) rvir(11) rs(12) vrms(13) mmp?(14) scale_of_last_MM(15) vmax(16) x(17) y(18) z(19) vx(20) vy(21) vz(22) Jx(23) Jy(24) Jz(25) Spin(26) Breadth_first_ID(27) Depth_first_ID(28) Tree_root_ID(29) Orig_halo_ID(30) Snap_num(31) Next_coprogenitor_depthfirst_ID(32) Last_progenitor_depthfirst_ID(33) %s\n"
+		"#scale(0) id(1) desc_scale(2) desc_id(3) num_prog(4) pid(5) upid(6) desc_pid(7) phantom(8) sam_mvir(9) mvir(10) rvir(11) rs(12) vrms(13) mmp?(14) scale_of_last_MM(15) vmax(16) x(17) y(18) z(19) vx(20) vy(21) vz(22) Jx(23) Jy(24) Jz(25) Spin(26) Breadth_first_ID(27) Depth_first_ID(28) Tree_root_ID(29) Orig_halo_ID(30) Snap_num(31) Next_coprogenitor_depthfirst_ID(32) Last_progenitor_depthfirst_ID(33) Last_mainleaf_depthfirst_ID(34) %s\n"
 		"#Omega_M = %f; Omega_L = %f; h0 = %f\n"
 		"#Full box size = %f Mpc/h\n"
 		"#Scale: Scale factor of halo.\n"
@@ -351,6 +355,7 @@ int64_t create_headers(void) {
 		"#Snap_num: Snapshot number from which halo originated.\n"
 		"#Next_coprogenitor_depthfirst_ID: Depthfirst ID of next coprogenitor.\n"
 		"#Last_progenitor_depthfirst_ID: Depthfirst ID of last progenitor.\n"
+		"#Last_mainleaf_depthfirst_ID: Depthfirst ID of last progenitor on main progenitor branch.\n"
 		"%s%s%s"
 		"#Consistent Trees Version %s\n", EXTRA_PARAM_LABELS, 
 		Om, Ol, h0, BOX_WIDTH,
@@ -521,7 +526,7 @@ void build_tree(int64_t id, int64_t inputnum) {
 void print_tree_halo(struct merger_halo *h, FILE *output) {
   int64_t next_cop_df = h->next_coprogenitor_df;
   if (next_cop_df > -1) next_cop_df += num_halos_output;
-  fprintf(output, " %.5f %8"PRId64" %.5f %8"PRId64" %6"PRId64" %8"PRId64" %8"PRId64" %8"PRId64" %2"PRId64" %.5e %.5e %6f %6f %6f %2"PRId64" %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64,
+  fprintf(output, " %.5f %8"PRId64" %.5f %8"PRId64" %6"PRId64" %8"PRId64" %8"PRId64" %8"PRId64" %2"PRId64" %.5e %.5e %6f %6f %6f %2"PRId64" %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64,
 	  h->scale, h->id, h->desc_scale, h->descid, h->num_prog,
 	  h->pid, h->upid, h->desc_pid, h->phantom,
 	  h->mvir, h->orig_mvir, h->rvir, h->rs, h->vrms,
@@ -530,7 +535,7 @@ void print_tree_halo(struct merger_halo *h, FILE *output) {
 	  h->vel[0], h->vel[1], h->vel[2],
 	  h->J[0], h->J[1], h->J[2], h->spin,
 	  h->breadthfirst_order+num_halos_output, h->depthfirst_order+num_halos_output, h->treeroot_id, h->orig_id,
-	  h->snapnum, next_cop_df, h->last_progenitor_df+num_halos_output);
+	  h->snapnum, next_cop_df, h->last_progenitor_df+num_halos_output, h->mainleaf_df+num_halos_output);
   for (int64_t i=0; i<EXTRA_PARAMS; i++) {
     if (h->extra_params[i] == ((double)((int64_t)h->extra_params[i])))
       fprintf(output, " %"PRId64, (int64_t)h->extra_params[i]);

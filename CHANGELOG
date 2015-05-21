@@ -1,5 +1,6 @@
 v1.01:
 *) Patch from Julian Onions to make the Sussing Merger Trees output format better conform to the NIFTy specification.
+*) MMP flag now uses Mvir instead of SAM_Mvir to determine most-massive progenitor (Thanks to Kristin Riebe for finding).
 
 v1.0:
 *) Major update to improve parallelization, especially for the first gravitational consistency stage.
