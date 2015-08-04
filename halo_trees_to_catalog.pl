@@ -18,7 +18,7 @@ open INPUT, "<", "$TREE_OUTBASE/$trees[0]";
 our $firstline = <INPUT>;
 chomp($firstline);
 my @elems = split(" ", $firstline);
-push @elems, qw/Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Mpeak_Scale Acc_Scale First_Acc_Scale First_Acc_Mvir First_Acc_Vmax Vmax@Mpeak/;
+push @elems, qw/Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Mpeak_Scale Acc_Scale First_Acc_Scale First_Acc_Mvir First_Acc_Vmax Vmax@Mpeak Tidal_Force_Tdyn/;
 
 for (0..$#elems) {
     $elems[$_] =~ s/\(\d+\)$//;
@@ -42,6 +42,7 @@ $firstline .= "#Acc_Scale: Scale at which satellites were (last) accreted.\n";
 $firstline .= "#First_Acc_Scale: Scale at which current and former satellites first passed through a larger halo.\n";
 $firstline .= "#First_Acc_(Mvir|Vmax): Mvir and Vmax at First_Acc_Scale.\n";
 $firstline .= "#Vmax\@Mpeak: Halo Vmax at the scale at which Mpeak was reached.\n";
+$firstline .= "#Tidal_Force_Tdyn: Dimensionless tidal force averaged over past dynamical time.\n"; 
 
 
 opendir DIR, $HLIST_OUTBASE;
@@ -244,6 +245,30 @@ sub find_mass_years_ago {
     return ($m, $guess);
 }
 
+sub calc_av_tidal_force {
+    my ($h) = @_;
+    my (@times, @forces);
+    my $orig_h = $h;
+    $h->{tidal_av} = $h->{tidal_force};
+    my ($av, $ttime) = (0,0);
+    my $last_time = $times{$h->{scale}};
+    my $min_time = $last_time - $dyn_times{$h->{scale}};
+    my $next_time = 0;
+    do {
+	$next_time = ($h->{prog}) ? (0.5*($times{$h->{scale}}+$times{$h->{prog}{scale}})) : $times{$h->{scale}};
+	$next_time = $min_time if ($next_time < $min_time);
+	my $dt = $last_time - $next_time;
+	$dt = 1 unless ($dt > 0);
+	$av += $h->{tidal_force}*$dt;
+	$ttime += $dt;
+	$h = $h->{prog};
+	$last_time = $next_time;
+    } while ($h and ($next_time > $min_time));
+    if ($ttime>0) {
+	$orig_h->{tidal_av} = $av / $ttime;
+    }
+}
+
 sub calc_accretion_rates {
     no warnings 'recursion';
     my $h = shift;
@@ -276,11 +301,13 @@ sub calc_accretion_rates {
 	$hdyn = $h unless (defined($hdyn));
 	$h->{acc_dyn_dyn} = $hdyn->{acc_dyn};
 	$h->{acc_2dyn_dyn} = $h2dyn->{acc_dyn};
+	calc_av_tidal_force($h);
 	return ($h100, $hdyn, $h2dyn, $h3dyn, $h4dyn, $hmp);
     }
     else {
 	my $tdyn = $dyn_times{$h->{scale}};
 	$h->{acc_inst} = $h->{acc_100} = $h->{acc_dyn} = $h->{acc_2dyn} =  $h->{acc_3dyn} = $h->{acc_4dyn} = $h->{acc_dyn_dyn} = $h->{acc_2dyn_dyn} = $h->{acc_mpeak} = $h->{orig_mvir} / $tdyn;
+	$h->{tidal_av} = $h->{tidal_force};
 	return ($h, $h, $h, $h, $h, $h);
     }
 }
@@ -335,7 +362,10 @@ sub scanline {
      $h->{mmp}, $h->{last_mm}, $h->{vmax},
      $h->{pos}[0], $h->{pos}[1], $h->{pos}[2],
      $h->{vel}[0], $h->{vel}[1], $h->{vel}[2],
-     $h->{J}[0], $h->{J}[1], $h->{J}[2], $h->{spin}, $h->{rest}) = split(" ", $line, 28);
+     $h->{J}[0], $h->{J}[1], $h->{J}[2], $h->{spin}, 
+     $h->{bfid}, $h->{dfid}, $h->{trid}, $h->{orig_id},
+     $h->{snapnum}, $h->{next_cop_df}, $h->{lpdfid}, $h->{mlid},
+     $h->{tidal_force}, $h->{tidal_id}, $h->{rest}) = split(" ", $line, 38);
     chomp($h->{rest});
     $h->{mvir} = abs($h->{mvir});
     return "$h->{scale} $h->{id}";
@@ -346,15 +376,18 @@ sub print {
     return unless (defined $h->{scale} and $h->{scale} > 0);
     _open_scale($h->{scale}) if (!exists($tree_outputs{$h->{scale}}));
     my $file = $tree_outputs{$h->{scale}};
-    $file->printf("%.5f %8s %.5f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %s %.5e %.5e %6f %6f %.4f %.3e %.3e %.3e %.3e %.3e %.3e %.3f %.3f %.3e %.3f %.3f\n",
+    $file->printf("%.5f %8s %.5f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.5f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %8s %8s %8s %8s %4s %8s %8s %8s %.5f %8s %s %.5e %.5e %6f %6f %.5f %.3e %.3e %.3e %.3e %.3e %.3e %.5f %.5f %.3e %.3f %.3f %.5f\n",
     $h->{scale}, $h->{id}, $h->{desc_scale}, $h->{descid}, $h->{num_prog},
     $h->{pid}, $h->{upid}, $h->{desc_pid}, $h->{phantom},
     $h->{mvir}, $h->{orig_mvir}, $h->{rvir}, $h->{rs}, $h->{vrms},
     $h->{mmp}, $h->{last_mm}, $h->{vmax},
     $h->{pos}[0], $h->{pos}[1], $h->{pos}[2],
     $h->{vel}[0], $h->{vel}[1], $h->{vel}[2],
-    $h->{J}[0], $h->{J}[1], $h->{J}[2], $h->{spin}, $h->{rest},
+    $h->{J}[0], $h->{J}[1], $h->{J}[2], $h->{spin}, 
+    $h->{bfid}, $h->{dfid}, $h->{trid}, $h->{orig_id},
+    $h->{snapnum}, $h->{next_cop_df}, $h->{lpdfid}, $h->{mlid},
+    $h->{tidal_force}, $h->{tidal_id}, $h->{rest},
     $h->{macc}, $h->{mpeak}, $h->{vacc}, $h->{vpeak}, $h->{halfmass},
-    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{first_acc}{scale}, $h->{first_acc}{orig_mvir}, $h->{first_acc}{vmax}, $h->{vmpeak});
+    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{first_acc}{scale}, $h->{first_acc}{orig_mvir}, $h->{first_acc}{vmax}, $h->{vmpeak}, $h->{tidal_av});
 }
 

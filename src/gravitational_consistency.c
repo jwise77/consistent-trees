@@ -172,6 +172,8 @@ int main(int argc, char **argv) {
 
     timed_output(_GC, "Recalculating output order...");
     calculate_new_output_order();
+    timed_output(_GC, "Rescaling tidal forces...");
+    scale_tidal_forces(&now, a1, a2);
     timed_output(_GC, "Calculating stats for halos added/removed...");
     count_good_halos(&now);
     print_stats(outputs[i]);

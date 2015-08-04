@@ -3,7 +3,7 @@
 #include "tree_halo.h"
 
 struct merger_halo {
-  int64_t id, descid, mmp, pid, upid, desc_pid, orig_id;
+  int64_t id, descid, mmp, pid, upid, desc_pid, orig_id, tidal_id;
   double scale, desc_scale;
   struct merger_halo *desc, *mmp_halo;
   int64_t phantom;
@@ -12,7 +12,7 @@ struct merger_halo {
   double mvir, rvir, vmax, vrms, rs, orig_mvir;
   double next_mass, prev_mass, incoming_mass;
   float last_mm;
-  float vmax_peak, vmax_acc, mvir_peak, mvir_acc;
+  float vmax_peak, vmax_acc, mvir_peak, mvir_acc, tidal_force;
   int64_t np, num_prog;
   int64_t breadthfirst_order, depthfirst_order, treeroot_id;
   int64_t last_progenitor_df, next_coprogenitor_df, mainleaf_df, snapnum;

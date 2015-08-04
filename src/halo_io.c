@@ -49,12 +49,14 @@ void print_halo(FILE *o, struct tree_halo *th) {
   int64_t flags;
   if (!th) {
     if (!strcasecmp(INPUT_FORMAT, "BINARY")) return;
-    fprintf(o, "#ID DescID Mvir Vmax Vrms Rvir Rs Np X Y Z VX VY VZ Jx Jy Jz spin %s Phantom MMP Suspicious? PID UPID Tracked Tracked_Single_MMP Num_MMP_Phantoms Original_ID Last_mm\n", EXTRA_PARAM_LABELS);
+    fprintf(o, "#ID DescID Mvir Vmax Vrms Rvir Rs Np X Y Z VX VY VZ Jx Jy Jz spin %s Phantom MMP Suspicious? PID UPID Tracked Tracked_Single_MMP Num_MMP_Phantoms Original_ID Last_mm Tidal_Force Tidal_ID\n", EXTRA_PARAM_LABELS);
      fprintf(o, "#Units: Masses in Msun / h\n"
             "#Units: Positions in Mpc / h (comoving)\n"
             "#Units: Velocities in km / s (physical)\n"
             "#Units: Angular Momenta in (Msun/h) * (Mpc/h) * km/s (physical)\n"
-            "#Units: Radii in kpc / h (comoving)\n");
+            "#Units: Radii in kpc / h (comoving)\n"
+	    "#Units: Tidal force in dimensionless units (Rhalo / Rhill)\n"
+	     );
     return;
   }
   if (!strcasecmp(INPUT_FORMAT, "BINARY")) {
@@ -77,9 +79,10 @@ void print_halo(FILE *o, struct tree_halo *th) {
     else
       fprintf(o, " %e", th->extra_params[i]);
   }
-  fprintf(o, " %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %f\n",
+  fprintf(o, " %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %f %e %"PRId64"\n",
 	  th->phantom, mmp, flags, th->pid, th->upid, th->tracked,
-	  th->tracked_single_mmp, th->num_mmp_phantoms, th->orig_id, th->last_mm);
+	  th->tracked_single_mmp, th->num_mmp_phantoms, th->orig_id, th->last_mm,
+	  th->tidal_force, th->tidal_id);
 }
 
 void common_print_halos(char *filename, struct tree_halo *h, int64_t num_halos, int64_t gzip_halos)
@@ -168,12 +171,12 @@ void load_halos(char *filename, struct halo_stash *h, float scale, int dead)
   float delta_mvir = delta_vir(scale);
   float mean_density = 2.77519737e11*Om; //(Msun/h) / (comoving Mpc/h)^3
   float vir_density = delta_mvir*mean_density;
-  int64_t expected_inputs = 28+EXTRA_PARAMS;
+  int64_t expected_inputs = 30+EXTRA_PARAMS;
   int64_t regular_inputs = 18;
   SHORT_PARSETYPE;
-#define NUM_INPUTS (28+MAX_EXTRA_PARAMS)
+#define NUM_INPUTS (30+MAX_EXTRA_PARAMS)
   enum short_parsetype stypes[NUM_INPUTS] = 
-    { D64, D64, F, F, F, F, F, D64, F, F, F, F, F, F, F, F, F, F, D64, D64, D64, D64, D64, D64, D64, D64, D64, F };
+    { D64, D64, F, F, F, F, F, D64, F, F, F, F, F, F, F, F, F, F, D64, D64, D64, D64, D64, D64, D64, D64, D64, F, F, D64};
   enum parsetype types[NUM_INPUTS];
   void *data[NUM_INPUTS] = {&(d.id),
 			    &(d.descid), &(d.mvir), &(d.vmax), &(d.vrms),
@@ -183,7 +186,8 @@ void load_halos(char *filename, struct halo_stash *h, float scale, int dead)
 			    &(d.J[2]), &(d.spin),
 			    &(phantom), &(mmp), &(flags), &(d.pid), &(d.upid),
 			    &(d.tracked), &(d.tracked_single_mmp), 
-			    &(d.num_mmp_phantoms), &(d.orig_id), &(d.last_mm)};
+			    &(d.num_mmp_phantoms), &(d.orig_id), &(d.last_mm),
+			    &(d.tidal_force), &(d.tidal_id)};
 
   int64_t read_ascii = 1;
   if (!strcasecmp(INPUT_FORMAT, "BINARY")) read_ascii = 0;
@@ -220,6 +224,8 @@ void load_halos(char *filename, struct halo_stash *h, float scale, int dead)
       if (n < regular_inputs+EXTRA_PARAMS+8) d.num_mmp_phantoms = 0;
       if (n < regular_inputs+EXTRA_PARAMS+9) d.orig_id = -1;
       if (n < regular_inputs+EXTRA_PARAMS+10) d.last_mm = 0;
+      if (n < regular_inputs+EXTRA_PARAMS+11) d.tidal_force = 0;
+      if (n < regular_inputs+EXTRA_PARAMS+12) d.tidal_id = -1;
 
       d.mvir = fabs(d.mvir);
       if (!(d.mvir>0)) continue;

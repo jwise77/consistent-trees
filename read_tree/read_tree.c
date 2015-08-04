@@ -215,7 +215,7 @@ void read_tree(char *filename) {
   char buffer[1024];
 
   SHORT_PARSETYPE;
-  #define NUM_INPUTS 34
+  #define NUM_INPUTS 36
   enum short_parsetype stypes[NUM_INPUTS] = 
     { F, D64, F, D64, D64,    //  #scale id desc_scale desc_id num_prog
       D64, D64, D64, D64,       //   pid upid desc_pid phantom 
@@ -224,6 +224,7 @@ void read_tree(char *filename) {
       F, F, F, F, F, F,    //x y z vx vy vz
       F, F, F, F, //Jx Jy Jz Spin
       D64, D64, D64, D64, D, D64, D64, //bfid, dfid, trid, ohid, snap, ncdfid, lpdfid
+      F, D64, //Tidal force, Tidal ID
     };
   enum parsetype types[NUM_INPUTS];
   void *data[NUM_INPUTS] = {&(h.scale), &(h.id), &(desc_scale),
@@ -237,6 +238,7 @@ void read_tree(char *filename) {
                             &h.breadth_first_id, &h.depth_first_id, &h.tree_root_id, 
                             &h.orig_halo_id, &h.snap_num, &h.next_coprogenitor_depthfirst_id, 
                             &h.last_progenitor_depthfirst_id,
+			    &(h.tidal_force), &(h.tidal_id),
     };
 
   for (n=0; n<NUM_INPUTS; n++) types[n] = stypes[n];

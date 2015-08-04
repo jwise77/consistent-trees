@@ -25,7 +25,7 @@ reg:
 	$(CC) $(CFLAGS) halo_evolve.c halo_evolve_lib.c $(SUPPORT) -o ../halo_evolve$(NP)  $(EXTRA_FLAGS)
 	$(CC) $(CFLAGS) tidal.c tidal_lib.c $(EXTRA_SUPPORT) -o ../tidal$(NP)  $(EXTRA_FLAGS)
 	$(CC) $(CFLAGS) gravitational_consistency.c gravitational_statistics.c halo_evolve_lib.c tidal_lib.c $(EXTRA_SUPPORT) -o ../gravitational_consistency$(NP) $(EXTRA_FLAGS)
-	$(CC) $(CFLAGS) find_parents_and_cleanup.c cleanup_statistics.c litehash.c $(EXTRA_SUPPORT) -o ../find_parents_and_cleanup$(NP) $(EXTRA_FLAGS)
+	$(CC) $(CFLAGS) find_parents_and_cleanup.c tidal_lib.c cleanup_statistics.c litehash.c $(EXTRA_SUPPORT) -o ../find_parents_and_cleanup$(NP) $(EXTRA_FLAGS)
 	$(CC) $(CFLAGS) resort_outputs.c inthash.c $(EXTRA_SUPPORT) -o ../resort_outputs $(EXTRA_FLAGS) 
 	$(CC) $(CFLAGS) assemble_halo_trees.c cached_io.c litehash.c $(EXTRA_SUPPORT) -o ../assemble_halo_trees $(EXTRA_FLAGS)
 

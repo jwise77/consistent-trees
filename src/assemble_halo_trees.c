@@ -324,7 +324,7 @@ int64_t create_headers(void) {
 	id = i*BOX_DIVISIONS*BOX_DIVISIONS + j*BOX_DIVISIONS + k;
 	output = tree_outputs[id] = check_fopen(buffer, "w");
 	fprintf(output,
-		"#scale(0) id(1) desc_scale(2) desc_id(3) num_prog(4) pid(5) upid(6) desc_pid(7) phantom(8) sam_mvir(9) mvir(10) rvir(11) rs(12) vrms(13) mmp?(14) scale_of_last_MM(15) vmax(16) x(17) y(18) z(19) vx(20) vy(21) vz(22) Jx(23) Jy(24) Jz(25) Spin(26) Breadth_first_ID(27) Depth_first_ID(28) Tree_root_ID(29) Orig_halo_ID(30) Snap_num(31) Next_coprogenitor_depthfirst_ID(32) Last_progenitor_depthfirst_ID(33) Last_mainleaf_depthfirst_ID(34) %s\n"
+		"#scale(0) id(1) desc_scale(2) desc_id(3) num_prog(4) pid(5) upid(6) desc_pid(7) phantom(8) sam_mvir(9) mvir(10) rvir(11) rs(12) vrms(13) mmp?(14) scale_of_last_MM(15) vmax(16) x(17) y(18) z(19) vx(20) vy(21) vz(22) Jx(23) Jy(24) Jz(25) Spin(26) Breadth_first_ID(27) Depth_first_ID(28) Tree_root_ID(29) Orig_halo_ID(30) Snap_num(31) Next_coprogenitor_depthfirst_ID(32) Last_progenitor_depthfirst_ID(33) Last_mainleaf_depthfirst_ID(34) Tidal_Force(35) Tidal_ID (36) %s\n"
 		"#Omega_M = %f; Omega_L = %f; h0 = %f\n"
 		"#Full box size = %f Mpc/h\n"
 		"#Scale: Scale factor of halo.\n"
@@ -356,6 +356,8 @@ int64_t create_headers(void) {
 		"#Next_coprogenitor_depthfirst_ID: Depthfirst ID of next coprogenitor.\n"
 		"#Last_progenitor_depthfirst_ID: Depthfirst ID of last progenitor.\n"
 		"#Last_mainleaf_depthfirst_ID: Depthfirst ID of last progenitor on main progenitor branch.\n"
+		"#Tidal_Force: Strongest tidal force from any nearby halo, in dimensionless units (Rhalo / Rhill).\n"
+		"#Tidal_ID: ID of halo exerting strongest tidal force.\n"
 		"%s%s%s"
 		"#Consistent Trees Version %s\n", EXTRA_PARAM_LABELS, 
 		Om, Ol, h0, BOX_WIDTH,
@@ -374,12 +376,12 @@ int64_t create_headers(void) {
 
 int64_t read_halo_from_line(struct merger_halo *halo, char *buffer, int64_t snapnum) {
   SHORT_PARSETYPE;
-#define NUM_INPUTS 28+MAX_EXTRA_PARAMS
+#define NUM_INPUTS 30+MAX_EXTRA_PARAMS
   enum short_parsetype stypes[NUM_INPUTS] = 
-    { D64, D64, F64, F64, F64, F64, F64, D64, F, F, F, F, F, F, F, F, F, F, D64, D64, K, D64, D64, K, K, K, D64, F };
+    { D64, D64, F64, F64, F64, F64, F64, D64, F, F, F, F, F, F, F, F, F, F, D64, D64, K, D64, D64, K, K, K, D64, F, F, D64 };
   enum parsetype types[NUM_INPUTS];
   int64_t regular_inputs = 18;
-  int64_t expected_inputs = 28+EXTRA_PARAMS;
+  int64_t expected_inputs = 30+EXTRA_PARAMS;
   int64_t n;
   void *data[NUM_INPUTS] = {&(halo->id),
                             &(halo->descid), &(halo->mvir), &(halo->vmax), 
@@ -390,7 +392,7 @@ int64_t read_halo_from_line(struct merger_halo *halo, char *buffer, int64_t snap
 			    &(halo->J[2]), &(halo->spin), &(halo->phantom), 
 			    &(halo->mmp), 
 			    NULL, &(halo->pid), &(halo->upid), NULL, NULL,
-			    NULL, &(halo->orig_id), &(halo->last_mm)};
+			    NULL, &(halo->orig_id), &(halo->last_mm), &(halo->tidal_force), &(halo->tidal_id)};
 
   memset(halo, 0, sizeof(struct merger_halo));
   for (n=0; n<NUM_INPUTS; n++) types[n] = stypes[n];
@@ -436,6 +438,8 @@ int64_t read_binary_halo_from_file(struct merger_halo *halo, FILE *input, int64_
   halo->last_mm = hf.last_mm;
   halo->desc_pid = -1;
   halo->snapnum = snapnum;
+  halo->tidal_force = hf.tidal_force;
+  halo->tidal_id = hf.tidal_id;
   memcpy(halo->extra_params, hf.extra_params, sizeof(double)*EXTRA_PARAMS);
   return 1;
 }
@@ -526,7 +530,7 @@ void build_tree(int64_t id, int64_t inputnum) {
 void print_tree_halo(struct merger_halo *h, FILE *output) {
   int64_t next_cop_df = h->next_coprogenitor_df;
   if (next_cop_df > -1) next_cop_df += num_halos_output;
-  fprintf(output, " %.5f %8"PRId64" %.5f %8"PRId64" %6"PRId64" %8"PRId64" %8"PRId64" %8"PRId64" %2"PRId64" %.5e %.5e %6f %6f %6f %2"PRId64" %.4f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64,
+  fprintf(output, " %.5f %8"PRId64" %.5f %8"PRId64" %6"PRId64" %8"PRId64" %8"PRId64" %8"PRId64" %2"PRId64" %.5e %.5e %6f %6f %6f %2"PRId64" %.5f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %"PRId64" %.5f %"PRId64,
 	  h->scale, h->id, h->desc_scale, h->descid, h->num_prog,
 	  h->pid, h->upid, h->desc_pid, h->phantom,
 	  h->mvir, h->orig_mvir, h->rvir, h->rs, h->vrms,
@@ -535,7 +539,8 @@ void print_tree_halo(struct merger_halo *h, FILE *output) {
 	  h->vel[0], h->vel[1], h->vel[2],
 	  h->J[0], h->J[1], h->J[2], h->spin,
 	  h->breadthfirst_order+num_halos_output, h->depthfirst_order+num_halos_output, h->treeroot_id, h->orig_id,
-	  h->snapnum, next_cop_df, h->last_progenitor_df+num_halos_output, h->mainleaf_df+num_halos_output);
+	  h->snapnum, next_cop_df, h->last_progenitor_df+num_halos_output, h->mainleaf_df+num_halos_output,
+	  h->tidal_force, h->tidal_id);
   for (int64_t i=0; i<EXTRA_PARAMS; i++) {
     if (h->extra_params[i] == ((double)((int64_t)h->extra_params[i])))
       fprintf(output, " %"PRId64, (int64_t)h->extra_params[i]);

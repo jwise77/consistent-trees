@@ -10,11 +10,11 @@
 struct halo {
   float scale;
   int64_t id, num_prog, phantom, pid, upid, mmp;
-  int64_t breadth_first_id, depth_first_id, tree_root_id, orig_halo_id, next_coprogenitor_depthfirst_id, last_progenitor_depthfirst_id;
+  int64_t breadth_first_id, depth_first_id, tree_root_id, orig_halo_id, next_coprogenitor_depthfirst_id, last_progenitor_depthfirst_id, tidal_id;
   int32_t snap_num;
   struct halo *desc, *parent, *uparent, *prog, *next_coprog;
   float mvir, orig_mvir, rvir, rs, vrms, scale_of_last_MM,
-    vmax, pos[3], vel[3], J[3], spin;
+    vmax, pos[3], vel[3], J[3], spin, tidal_force;
   EXTRA_HALO_INFO
 };
 

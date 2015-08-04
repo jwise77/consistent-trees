@@ -19,6 +19,7 @@
 #include "halo_io.h"
 #include "version.h"
 #include "litehash.h"
+#include "tidal_lib.h"
 
 #define FAST3TREE_PREFIX FPAC
 #define FAST3TREE_TYPE struct tree_halo
@@ -114,6 +115,12 @@ int main(int argc, char **argv) {
       cleanup_find_new_descendants(a1, a2);
     }
     //cleanup_no_progenitors(a1, stage);
+    tidal_extra_range = tidal_fpac_mode = 1;
+    timed_output(_FPAC, "Calculating tidal forces...");
+    calc_tidal_forces(&now, a1, a1);
+    timed_output(_FPAC, "Rescaling tidal forces...");
+    scale_tidal_forces(&now, a1, a1);
+
     timed_output(_FPAC, "Refinding parents...");
     find_parents();
 
@@ -219,6 +226,7 @@ void translate_ids(int64_t stage) {
     now.halos[i].id = lookup_new_id(now.halos[i].id, lh_ids);
     now.halos[i].pid = lookup_new_id(now.halos[i].pid, lh_ids);
     now.halos[i].upid = lookup_new_id(now.halos[i].upid, lh_ids);
+    now.halos[i].tidal_id = lookup_new_id(now.halos[i].tidal_id, lh_ids);
     if (stage < 3)
       now.halos[i].descid = lookup_new_id(now.halos[i].descid, lh_descids);
     else
