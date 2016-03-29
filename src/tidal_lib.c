@@ -63,7 +63,9 @@ void calc_low_tidal_forces(struct halo_stash *h, struct fast3tree *t, float conv
   int64_t i, j;
   struct tree_halo *halos = h->halos;
   struct fast3tree_results *nearest = fast3tree_results_init();
+#ifndef NO_PERIODIC
   float box_size2 = box_size/2.0;
+#endif /* !NO_PERIODIC */
   for (i=0; i<h->num_halos; i++) {
     if (halos[i].tidal_force) continue;
     if (halos[i].flags & DEAD_HALO_FLAG) continue;

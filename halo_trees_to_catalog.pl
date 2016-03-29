@@ -18,7 +18,7 @@ open INPUT, "<", "$TREE_OUTBASE/$trees[0]";
 our $firstline = <INPUT>;
 chomp($firstline);
 my @elems = split(" ", $firstline);
-push @elems, qw/Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Mpeak_Scale Acc_Scale First_Acc_Scale First_Acc_Mvir First_Acc_Vmax Vmax@Mpeak Tidal_Force_Tdyn/;
+push @elems, qw'Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Mpeak_Scale Acc_Scale First_Acc_Scale First_Acc_Mvir First_Acc_Vmax Vmax\@Mpeak Tidal_Force_Tdyn Log_(Vmax/Vmax_max(Tdyn;Tmpeak)) Time_to_future_merger Future_merger_MMP_ID';
 
 for (0..$#elems) {
     $elems[$_] =~ s/\(\d+\)$//;
@@ -42,8 +42,10 @@ $firstline .= "#Acc_Scale: Scale at which satellites were (last) accreted.\n";
 $firstline .= "#First_Acc_Scale: Scale at which current and former satellites first passed through a larger halo.\n";
 $firstline .= "#First_Acc_(Mvir|Vmax): Mvir and Vmax at First_Acc_Scale.\n";
 $firstline .= "#Vmax\@Mpeak: Halo Vmax at the scale at which Mpeak was reached.\n";
-$firstline .= "#Tidal_Force_Tdyn: Dimensionless tidal force averaged over past dynamical time.\n"; 
-
+$firstline .= "#Tidal_Force_Tdyn: Dimensionless tidal force averaged over past dynamical time.\n";
+$firstline .= "#Log_(Vmax/Vmax_max(Tdyn;TMpeak)): Log10 of Vmax_now over Vmax@(Tdyn ago) OR Vmax\@Mpeak (if and only if Mpeak happened > 1Tdyn ago).\n";
+$firstline .= "#Time_to_future_merger: Time (in Gyr) until the given halo merges into a larger halo.  (-1 if no future merger happens)\n";
+$firstline .= "#Future_merger_MMP_ID: most-massive progenitor of the halo into which the given halo merges. (-1 if the main progenitor of the future merger halo does not exist at the given scale factor.)\n";
 
 opendir DIR, $HLIST_OUTBASE;
 for (readdir DIR) {
@@ -146,6 +148,7 @@ sub process_tree {
 	calc_mass_vmax_acc($h);
 	calc_halfmass($h);
 	calc_accretion_rates($h);
+	calc_future_merger_info($h);
 	$h->print();
     }
 }
@@ -299,6 +302,9 @@ sub calc_accretion_rates {
 	$h->{acc_inst} = ($h->{orig_mvir} - $h->{prog}->{orig_mvir}) / ($times{$h->{scale}} - $times{$h->{prog}->{scale}});
 	$h->{acc_mpeak} = ($h->{mpeak} - $hmp->{mpeak})/($times{$h->{scale}} - $times{$hmp->{scale}});
 	$hdyn = $h unless (defined($hdyn));
+	my $hvmax = $hdyn->{vmax};
+        $hvmax = $h->{vmpeak} if ($h->{mpeak_scale} < $hdyn->{scale});
+        $h->{lvmax_tdyn} = ($hvmax > 0) ? log($h->{vmax}/$hvmax)/log(10) : 0;
 	$h->{acc_dyn_dyn} = $hdyn->{acc_dyn};
 	$h->{acc_2dyn_dyn} = $h2dyn->{acc_dyn};
 	calc_av_tidal_force($h);
@@ -308,10 +314,37 @@ sub calc_accretion_rates {
 	my $tdyn = $dyn_times{$h->{scale}};
 	$h->{acc_inst} = $h->{acc_100} = $h->{acc_dyn} = $h->{acc_2dyn} =  $h->{acc_3dyn} = $h->{acc_4dyn} = $h->{acc_dyn_dyn} = $h->{acc_2dyn_dyn} = $h->{acc_mpeak} = $h->{orig_mvir} / $tdyn;
 	$h->{tidal_av} = $h->{tidal_force};
+	$h->{lvmax_tdyn} = 0;
 	return ($h, $h, $h, $h, $h, $h);
     }
 }
 
+
+sub calc_future_merger_info {
+    no warnings 'recursion';
+    my $h = shift;
+    return ($h->{ttmerge}, $h->{merger_mmp}) if ($h->{mseen});
+    $h->{mseen} = 1;
+    if ($h->{descid} < 0) {
+	$h->{ttmerge} = -1;
+	$h->{merger_mmp} = $h;
+    }
+    else {
+	my $d = $halos{$h->{desc_scale}}{$h->{descid}};
+	die("Error: no descendant found for halo $h->{id} \@ a=$h->{scale}!\n") unless defined $d;
+	if ($h->{mmp} == 0) {
+	    $h->{ttmerge} = 0.5*($times{$h->{desc_scale}} - $times{$h->{scale}});
+	    $h->{merger_mmp} = $d->{prog};
+	}
+	else {
+	    my ($ttmerge, $mmp) = calc_future_merger_info($d);
+	    $h->{ttmerge} = ($ttmerge > -1) ? $ttmerge + ($times{$h->{desc_scale}} - $times{$h->{scale}}) : -1;
+	    $h->{merger_mmp} = (defined $mmp) ? $mmp->{prog} : undef;
+	}
+    }
+    Scalar::Util::weaken($h->{merger_mmp}) if (defined $h->{merger_mmp});
+    return ($h->{ttmerge}, $h->{merger_mmp});
+}
 
 sub load_config {
     my $config = new ReadConfig($ARGV[0]);
@@ -375,8 +408,10 @@ sub print {
     my $h = shift;
     return unless (defined $h->{scale} and $h->{scale} > 0);
     _open_scale($h->{scale}) if (!exists($tree_outputs{$h->{scale}}));
+    my $merger_mmp = (defined $h->{merger_mmp}) ? $h->{merger_mmp}->{id} : -1;
+    my $tt_merger = ($h->{ttmerge} > -1) ? $h->{ttmerge}/1e9 : -1;
     my $file = $tree_outputs{$h->{scale}};
-    $file->printf("%.5f %8s %.5f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.5f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %8s %8s %8s %8s %4s %8s %8s %8s %.5f %8s %s %.5e %.5e %6f %6f %.5f %.3e %.3e %.3e %.3e %.3e %.3e %.5f %.5f %.3e %.3f %.3f %.5f\n",
+    $file->printf("%.5f %8s %.5f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.5f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %8s %8s %8s %8s %4s %8s %8s %8s %.5f %8s %s %.5e %.5e %6f %6f %.5f %.3e %.3e %.3e %.3e %.3e %.3e %.5f %.5f %.3e %.3f %.3f %.5f %.5f %.5f %8s\n",
     $h->{scale}, $h->{id}, $h->{desc_scale}, $h->{descid}, $h->{num_prog},
     $h->{pid}, $h->{upid}, $h->{desc_pid}, $h->{phantom},
     $h->{mvir}, $h->{orig_mvir}, $h->{rvir}, $h->{rs}, $h->{vrms},
@@ -388,6 +423,6 @@ sub print {
     $h->{snapnum}, $h->{next_cop_df}, $h->{lpdfid}, $h->{mlid},
     $h->{tidal_force}, $h->{tidal_id}, $h->{rest},
     $h->{macc}, $h->{mpeak}, $h->{vacc}, $h->{vpeak}, $h->{halfmass},
-    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{first_acc}{scale}, $h->{first_acc}{orig_mvir}, $h->{first_acc}{vmax}, $h->{vmpeak}, $h->{tidal_av});
+    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{first_acc}{scale}, $h->{first_acc}{orig_mvir}, $h->{first_acc}{vmax}, $h->{vmpeak}, $h->{tidal_av}, $h->{lvmax_tdyn}, $tt_merger, $merger_mmp);
 }
 

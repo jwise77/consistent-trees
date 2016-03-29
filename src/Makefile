@@ -4,7 +4,7 @@ EXTRA_SUPPORT=$(SUPPORT) read_config.c grav_config.c
 OFLAGS = -lm -O3 -std=c99
 DEBUGFLAGS = -lm -g -O -std=c99
 PROFFLAGS = -lm -g -pg -O2 -std=c99
-#CC = gcc-mp-4.8
+CC = gcc-mp-4.8
 
 all:
 	@make reg EXTRA_FLAGS="$(OFLAGS)"
@@ -20,6 +20,7 @@ prof:
 
 
 reg:
+	$(CC) $(CFLAGS) recalc_tidal_forces.c inthash.c  tidal_lib.c $(EXTRA_SUPPORT) -o ../recalc_tidal_forces$(NP)  $(EXTRA_FLAGS)
 	$(CC) $(CFLAGS) gen_sussing_forests.c inthash.c $(EXTRA_SUPPORT) -o ../gen_sussing_forests  $(EXTRA_FLAGS)
 	$(CC) $(CFLAGS) convert_format.c $(EXTRA_SUPPORT) -o ../convert_format  $(EXTRA_FLAGS)
 	$(CC) $(CFLAGS) halo_evolve.c halo_evolve_lib.c $(SUPPORT) -o ../halo_evolve$(NP)  $(EXTRA_FLAGS)

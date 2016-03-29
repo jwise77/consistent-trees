@@ -7,6 +7,8 @@ real(Om,0.27);
 real(h0,0.70);
 real(Ol,0.73);
 
+string(MASS_DEFINITION, "vir");
+
 string(SCALEFILE,"scales.txt");
 string(INBASE,".");
 string(OUTBASE,".");

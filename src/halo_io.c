@@ -49,7 +49,7 @@ void print_halo(FILE *o, struct tree_halo *th) {
   int64_t flags;
   if (!th) {
     if (!strcasecmp(INPUT_FORMAT, "BINARY")) return;
-    fprintf(o, "#ID DescID Mvir Vmax Vrms Rvir Rs Np X Y Z VX VY VZ Jx Jy Jz spin %s Phantom MMP Suspicious? PID UPID Tracked Tracked_Single_MMP Num_MMP_Phantoms Original_ID Last_mm Tidal_Force Tidal_ID\n", EXTRA_PARAM_LABELS);
+    fprintf(o, "#ID DescID M%s Vmax Vrms R%s Rs Np X Y Z VX VY VZ Jx Jy Jz spin %s Phantom MMP Suspicious? PID UPID Tracked Tracked_Single_MMP Num_MMP_Phantoms Original_ID Last_mm Tidal_Force Tidal_ID\n", MASS_DEFINITION, MASS_DEFINITION, EXTRA_PARAM_LABELS);
      fprintf(o, "#Units: Masses in Msun / h\n"
             "#Units: Positions in Mpc / h (comoving)\n"
             "#Units: Velocities in km / s (physical)\n"
