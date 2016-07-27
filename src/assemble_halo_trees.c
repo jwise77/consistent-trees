@@ -345,7 +345,7 @@ int64_t create_headers(void) {
 		"#scale_of_last_MM: scale factor of the last major merger (Mass ratio > %g).\n"
 		"#Vmax: Maxmimum circular velocity (km/s physical).\n"
 		"#X/Y/Z: Halo position (Mpc/h comoving).\n"
-		"#VX/VY/VZ: Halo velocity (km/s physical).\n"
+		"#VX/VY/VZ: Halo velocity (km/s physical, peculiar).\n"
 		"#JX/JY/JZ: Halo angular momenta ((Msun/h) * (Mpc/h) * km/s (physical)).\n"
 		"#Spin: Halo spin parameter.\n"
 		"#Breadth_first_ID: breadth-first ordering of halos within a tree.\n"		
