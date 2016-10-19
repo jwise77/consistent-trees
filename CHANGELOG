@@ -4,6 +4,7 @@ v1.01:
 *) Mainleaf_id added at request of Kristin Riebe.
 *) Added Tidal_Force, Tidal_ID, and Tidal_Force_Tdyn to outputs.
 *) All scale factors have been promoted to 5 significant digits (thanks to Andrew Hearin for catching).
+*) Fixed segfault in fast3tree.c for large numbers of threads (thanks to Michael Buhlmann for catching).
 
 v1.0:
 *) Major update to improve parallelization, especially for the first gravitational consistency stage.

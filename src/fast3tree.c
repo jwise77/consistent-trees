@@ -1016,6 +1016,7 @@ void _fast3tree_split_nodes_parallel(struct fast3tree *t, struct tree3_node *nod
   assert(cpus > 0);
 
   assert(cpus == _fast3tree_parallel_mapping(t, node, factors, factors_prod, chunk_size, mapping, -1, 0));
+  node = t->root;
   _fast3tree_timing("Prep time");
   _fast3tree_check_init(seg, int16_t, node->num_points);
   _fast3tree_check_init(counts, int64_t, cpus*real_cpus);

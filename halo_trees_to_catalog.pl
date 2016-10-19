@@ -18,7 +18,7 @@ open INPUT, "<", "$TREE_OUTBASE/$trees[0]";
 our $firstline = <INPUT>;
 chomp($firstline);
 my @elems = split(" ", $firstline);
-push @elems, qw'Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Mpeak_Scale Acc_Scale First_Acc_Scale First_Acc_Mvir First_Acc_Vmax Vmax\@Mpeak Tidal_Force_Tdyn Log_(Vmax/Vmax_max(Tdyn;Tmpeak)) Time_to_future_merger Future_merger_MMP_ID';
+push @elems, qw'Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Acc_Log_Vmax_Inst Acc_Log_Vmax_1*Tdyn Mpeak_Scale Acc_Scale First_Acc_Scale First_Acc_Mvir First_Acc_Vmax Vmax\@Mpeak Tidal_Force_Tdyn Log_(Vmax/Vmax_max(Tdyn;Tmpeak)) Time_to_future_merger Future_merger_MMP_ID';
 
 for (0..$#elems) {
     $elems[$_] =~ s/\(\d+\)$//;
@@ -33,10 +33,11 @@ close INPUT;
 $firstline .= "#Macc,Vacc: Mass and Vmax at accretion.\n";
 $firstline .= "#Mpeak,Vpeak: Peak mass and Vmax over mass accretion history.\n";
 $firstline .= "#Halfmass_Scale: Scale factor at which the MMP reaches 0.5*Mpeak.\n";
-$firstline .= "#Acc_Rate_*: Halo mass accretion rates in Msun/h/yr.\n";
+$firstline .= "#Acc_Rate_*: Halo mass (or log10 vmax) accretion rates in Msun/h/yr (or dex/yr).\n";
 $firstline .= "#            Inst: instantaneous; 100Myr: averaged over past 100Myr,\n";
 $firstline .= "#            X*Tdyn: averaged over past X*virial dynamical time.\n";
 $firstline .= "#            Mpeak: Growth Rate of Mpeak, averaged from current z to z+0.5\n";
+$firstline .= "#            Log_Vmax: Growth Rate of Log10(Vmax)\n";
 $firstline .= "#Mpeak_Scale: Scale at which Mpeak was reached.\n";
 $firstline .= "#Acc_Scale: Scale at which satellites were (last) accreted.\n";
 $firstline .= "#First_Acc_Scale: Scale at which current and former satellites first passed through a larger halo.\n";
@@ -302,6 +303,16 @@ sub calc_accretion_rates {
 	$h->{acc_inst} = ($h->{orig_mvir} - $h->{prog}->{orig_mvir}) / ($times{$h->{scale}} - $times{$h->{prog}->{scale}});
 	$h->{acc_mpeak} = ($h->{mpeak} - $hmp->{mpeak})/($times{$h->{scale}} - $times{$hmp->{scale}});
 	$hdyn = $h unless (defined($hdyn));
+	if ($h->{vmax}>0 and $h->{prog}{vmax}>0) {
+	    $h->{dlvmax_inst} = (log($h->{vmax}/$h->{prog}{vmax})/log(10))/ ($times{$h->{scale}} - $times{$h->{prog}->{scale}});
+	} else {
+	    $h->{dlvmax_inst} = 0;
+	}
+	if ($h->{vmax}>0 and defined($hdyn) and $hdyn->{vmax}>0) {
+	    $h->{dlvmax_dyn} = (log($h->{vmax}/$hdyn->{vmax})/log(10))/ ($tdyn);
+	} else {
+	    $h->{dlvmax_dyn} = $h->{dlvmax_inst};
+	}
 	my $hvmax = $hdyn->{vmax};
         $hvmax = $h->{vmpeak} if ($h->{mpeak_scale} < $hdyn->{scale});
         $h->{lvmax_tdyn} = ($hvmax > 0) ? log($h->{vmax}/$hvmax)/log(10) : 0;
@@ -315,6 +326,7 @@ sub calc_accretion_rates {
 	$h->{acc_inst} = $h->{acc_100} = $h->{acc_dyn} = $h->{acc_2dyn} =  $h->{acc_3dyn} = $h->{acc_4dyn} = $h->{acc_dyn_dyn} = $h->{acc_2dyn_dyn} = $h->{acc_mpeak} = $h->{orig_mvir} / $tdyn;
 	$h->{tidal_av} = $h->{tidal_force};
 	$h->{lvmax_tdyn} = 0;
+	$h->{dlvmax_inst} = $h->{dlvmax_dyn} = 0;
 	return ($h, $h, $h, $h, $h, $h);
     }
 }
@@ -411,7 +423,7 @@ sub print {
     my $merger_mmp = (defined $h->{merger_mmp}) ? $h->{merger_mmp}->{id} : -1;
     my $tt_merger = ($h->{ttmerge} > -1) ? $h->{ttmerge}/1e9 : -1;
     my $file = $tree_outputs{$h->{scale}};
-    $file->printf("%.5f %8s %.5f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.5f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %8s %8s %8s %8s %4s %8s %8s %8s %.5f %8s %s %.5e %.5e %6f %6f %.5f %.3e %.3e %.3e %.3e %.3e %.3e %.5f %.5f %.3e %.3f %.3f %.5f %.5f %.5f %8s\n",
+    $file->printf("%.5f %8s %.5f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.5f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %8s %8s %8s %8s %4s %8s %8s %8s %.5f %8s %s %.5e %.5e %6f %6f %.5f %.3e %.3e %.3e %.3e %.3e %.3e %.3e %.5f %.5f %.5f %.3e %.3f %.3f %.5f %.5f %.5f %8s\n",
     $h->{scale}, $h->{id}, $h->{desc_scale}, $h->{descid}, $h->{num_prog},
     $h->{pid}, $h->{upid}, $h->{desc_pid}, $h->{phantom},
     $h->{mvir}, $h->{orig_mvir}, $h->{rvir}, $h->{rs}, $h->{vrms},
@@ -423,6 +435,6 @@ sub print {
     $h->{snapnum}, $h->{next_cop_df}, $h->{lpdfid}, $h->{mlid},
     $h->{tidal_force}, $h->{tidal_id}, $h->{rest},
     $h->{macc}, $h->{mpeak}, $h->{vacc}, $h->{vpeak}, $h->{halfmass},
-    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{first_acc}{scale}, $h->{first_acc}{orig_mvir}, $h->{first_acc}{vmax}, $h->{vmpeak}, $h->{tidal_av}, $h->{lvmax_tdyn}, $tt_merger, $merger_mmp);
+    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{dlvmax_inst}, $h->{dlvmax_dyn}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{first_acc}{scale}, $h->{first_acc}{orig_mvir}, $h->{first_acc}{vmax}, $h->{vmpeak}, $h->{tidal_av}, $h->{lvmax_tdyn}, $tt_merger, $merger_mmp);
 }
 
