@@ -113,6 +113,10 @@ void do_timestep(struct halo_stash *h, double a1, double a2, double a3, int spec
   float acc_dt2 = (dt*dt / 2.0) * 1.02268944e-6 * h0 / av_a;
   float conv_const = av_a*av_a / h0 / h0;
 
+  float H = h0*100.0 * sqrt(Om/(av_a*av_a*av_a)+Ol); //Hubble flow in km/s/(Mpc)
+  float h_drag = -2.0 * H * av_a * 1.02269032e-6; //km/s/(Mpc) to km/s/Myr / (km/s) = 1/Myr
+
+  
   //Update intermediate velocities
   if (special_step != 1) { //If we're not at the first step.
 #pragma omp parallel for private(i)
@@ -173,11 +177,11 @@ void do_timestep(struct halo_stash *h, double a1, double a2, double a3, int spec
 	acc = r ? Gc*m/r3 : 0; //In km/s / Myr / (comoving Mpc/h)
 
 #pragma omp atomic
-	h2->a[0] += acc*dx;      //In km/s / Myr
+	h2->a[0] += acc*dx + h_drag*h->vel[0];      //In km/s / Myr
 #pragma omp atomic
-	h2->a[1] += acc*dy;
+	h2->a[1] += acc*dy + h_drag*h->vel[1];
 #pragma omp atomic
-	h2->a[2] += acc*dz;
+	h2->a[2] += acc*dz + h_drag*h->vel[2];
       }
     }
     fast3tree_results_free(nearest);
