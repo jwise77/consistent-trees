@@ -136,7 +136,7 @@ void do_timestep(struct halo_stash *h, double a1, double a2, double a3, int spec
   IF_PERIODIC _fast3tree_set_minmax(ev_halo_tree, 0, box_size);
   if (special_step == 1) correct_mass_factors(h);
 
-#pragma omp parallel default(none) shared(h,ev_halo_tree,h0,av_a,max_dist,box_size,conv_const,vir_conv_factor,dt) private(i)
+#pragma omp parallel default(none) shared(h,ev_halo_tree,h0,av_a,max_dist,box_size,conv_const,vir_conv_factor,dt,h_drag) private(i)
   {
     struct fast3tree_results *nearest = fast3tree_results_init();
     float inv_rs, r,m, dx, dy, dz, r3, acc, rsoft2, range;
@@ -153,6 +153,9 @@ void do_timestep(struct halo_stash *h, double a1, double a2, double a3, int spec
 	fast3tree_find_sphere(ev_halo_tree, nearest, h1->pos, range);
 
       inv_rs = 1000.0/h1->rs; //In comoving h/Mpc, b/c rs is in kpc/h
+
+      for (int64_t j=0; j<3; j++) h1->a[j] += h_drag*h1->vel[j];
+
       for (int64_t j=0; j<nearest->num_points; j++) {
 	//Calculate gravitational forces
 	struct tree_halo *h2 = nearest->points[j];
@@ -177,11 +180,11 @@ void do_timestep(struct halo_stash *h, double a1, double a2, double a3, int spec
 	acc = r ? Gc*m/r3 : 0; //In km/s / Myr / (comoving Mpc/h)
 
 #pragma omp atomic
-	h2->a[0] += acc*dx + h_drag*h->vel[0];      //In km/s / Myr
+	h2->a[0] += acc*dx;      //In km/s / Myr
 #pragma omp atomic
-	h2->a[1] += acc*dy + h_drag*h->vel[1];
+	h2->a[1] += acc*dy;
 #pragma omp atomic
-	h2->a[2] += acc*dz + h_drag*h->vel[2];
+	h2->a[2] += acc*dz;
       }
     }
     fast3tree_results_free(nearest);
