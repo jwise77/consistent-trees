@@ -6,6 +6,7 @@ v1.01:
 *) All scale factors have been promoted to 5 significant digits (thanks to Andrew Hearin for catching).
 *) Fixed segfault in fast3tree.c for large numbers of threads (thanks to Michael Buhlmann for catching).
 *) Hubble Drag term now included in force integration.
+*) Changed Snap_num label to Snap_idx (thanks to Manodeep Sinha for noticing).
 
 v1.0:
 *) Major update to improve parallelization, especially for the first gravitational consistency stage.
