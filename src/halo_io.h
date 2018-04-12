@@ -13,6 +13,7 @@
 #define _RO "Resort Outputs"
 #define _AHT "Assemble Halo Trees"
 #define _RTF "Recalculate Tidal Forces"
+#define _SP "Splashback Parameters"
 
 void gzip_file(char *filename);
 void print_halo(FILE *o, struct tree_halo *th);

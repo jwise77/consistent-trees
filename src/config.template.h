@@ -43,6 +43,7 @@ integer(SMALL_PARTICLE_LIMIT,49); /* Halos smaller than this size get kept aroun
 /* SHOULD NOT BE SET TO MORE THAN 50 for BOLSHOI and BDM results. */
 
 real(TIDAL_FORCE_LIMIT,0.1);
+real(TIDAL_FORCE_CALCULATION_LIMIT, 1e-3);
 integer(RECURSION_LIMIT,5);
 real(METRIC_LIMIT,7);
 real(UNPHYSICAL,22); //Should be (3*METRIC_LIMIT+1));
@@ -55,5 +56,6 @@ string(EXTRA_PARAM_DESCRIPTIONS, "");     //Descriptions in merger tree, etc.
 string(EXTRA_PARAM_INTERPOLATIONS, "");   //Interpolation method: "l", "s", "c" for linear, square, cubic
 integer(SUSSING_MASS_FIELD, -1);
 integer(FIX_ROCKSTAR_SPINS, -1);
+integer(RESCALE_RVIR, 0);
 
 integer(LIMITED_MEMORY, 0);

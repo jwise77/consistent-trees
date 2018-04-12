@@ -229,7 +229,7 @@ void load_halos(char *filename, struct halo_stash *h, float scale, int dead)
 
       d.mvir = fabs(d.mvir);
       if (!(d.mvir>0)) continue;
-      if (!(d.rvir > 0))
+      if (!(d.rvir > 0) || RESCALE_RVIR)
 	d.rvir = cbrt(d.mvir / (4.0*M_PI*vir_density/3.0)) * 1000.0;
       if (!(d.rs > 0)) d.rs = d.rvir / concentration(d.mvir, scale);
 
