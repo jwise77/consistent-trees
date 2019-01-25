@@ -1109,7 +1109,7 @@ void _fast3tree_split_nodes_parallel(struct fast3tree *t, struct tree3_node *nod
       indices[ts]++;
       n--;
     }
-    while (seg[indices[ts]]==ts) { seg[indices[ts]] = -1; indices[ts]++; }
+    while (seg[indices[ts]]==ts && indices[ts] < node->num_points) { seg[indices[ts]] = -1; indices[ts]++; }
   }
   free(seg);
   _fast3tree_timing("Resort");
