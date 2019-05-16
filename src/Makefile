@@ -20,6 +20,7 @@ prof:
 
 
 reg:
+	$(CC) $(CFLAGS) sort_halo_catalogs.c inthash.c check_syscalls.c stringparse.c -o ../sort_halo_catalogs  $(EXTRA_FLAGS)
 	$(CC) $(CFLAGS) splashback_parameters.c inthash.c $(EXTRA_SUPPORT) -o ../splashback_parameters  $(EXTRA_FLAGS)
 	$(CC) $(CFLAGS) recalc_tidal_forces.c inthash.c  tidal_lib.c $(EXTRA_SUPPORT) -o ../recalc_tidal_forces$(NP)  $(EXTRA_FLAGS)
 	$(CC) $(CFLAGS) gen_sussing_forests.c inthash.c $(EXTRA_SUPPORT) -o ../gen_sussing_forests  $(EXTRA_FLAGS)
