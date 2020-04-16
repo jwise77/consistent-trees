@@ -65,7 +65,7 @@ int main(int argc, char **argv)
   }
   snprintf(buffer, 1024, "%s/locations.dat", TREE_OUTBASE);
   locations = check_fopen(buffer, "w");
-  fprintf(locations, "#TreeRootID FileID Offset Filename Numhalos Numbytes\n");
+  fprintf(locations, "#TreeRootID FileID Offset Filename Num_Halos Num_Bytes\n");
 
   input = tree_inputs[num_outputs-1];
 
@@ -207,9 +207,9 @@ void print_tree_halos(int64_t file_id) {
   for (i=0; i<num_halos; i++)
     print_tree_halo(halos + i, tree_outputs[file_id]);
     
-  int64_t numbytes = ftello(tree_outputs[file_id]) - offset;
+  int64_t num_bytes = ftello(tree_outputs[file_id]) - offset;
   fprintf(locations, "%"PRId64" %"PRId64" %"PRId64" tree_%"PRId64"_%"PRId64"_%"PRId64".dat  %"PRId64" %"PRId64"\n",
-	  halos[0].id, file_id, offset, i, j, k, num_halos, numbytes);
+	  halos[0].id, file_id, offset, i, j, k, num_halos, num_bytes);
 }
 
 
