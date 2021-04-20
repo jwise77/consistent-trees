@@ -18,7 +18,7 @@ open INPUT, "<", "$TREE_OUTBASE/$trees[0]";
 our $firstline = <INPUT>;
 chomp($firstline);
 my @elems = split(" ", $firstline);
-push @elems, qw'Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Acc_Log_Vmax_Inst Acc_Log_Vmax_1*Tdyn Mpeak_Scale Acc_Scale First_Acc_Scale First_Acc_Mvir First_Acc_Vmax Vmax\@Mpeak Tidal_Force_Tdyn Log_(Vmax/Vmax_max(Tdyn;Tmpeak)) Time_to_future_merger Future_merger_MMP_ID';
+push @elems, qw'Macc Mpeak Vacc Vpeak Halfmass_Scale Acc_Rate_Inst Acc_Rate_100Myr Acc_Rate_1*Tdyn Acc_Rate_2*Tdyn Acc_Rate_Mpeak Acc_Log_Vmax_Inst Acc_Log_Vmax_1*Tdyn Mpeak_Scale Acc_Scale First_Acc_Scale First_Acc_Mvir First_Acc_Vmax Vmax\@Mpeak Tidal_Force_Tdyn Log_(Vmax/Vmax_max(Tdyn;Tmpeak)) Time_to_future_merger Future_merger_MMP_ID Spin_at_Mpeak_Scale';
 
 for (0..$#elems) {
     $elems[$_] =~ s/\(\d+\)$//;
@@ -179,10 +179,12 @@ sub calc_mass_vmax_acc {
 	$h->{mpeak_scale} = $h->{prog}{mpeak_scale};
 	$h->{vmpeak} = $h->{prog}{vmpeak};
 	$h->{mpeak} = $h->{prog}{mpeak};
+	$h->{spin_mpeak} = $h->{prog}{spin_mpeak};
 	if ($h->{orig_mvir} > $h->{prog}{mpeak}) {
 	    $h->{mpeak} = $h->{orig_mvir};
 	    $h->{mpeak_scale} = $h->{scale};
 	    $h->{vmpeak} = $h->{vmax};
+	    $h->{spin_mpeak} = $h->{spin};
 	}
 
 	#Vpeak / Mpeak *before* accretion
@@ -197,6 +199,7 @@ sub calc_mass_vmax_acc {
 	$h->{acc_scale} = $h->{scale};
 	$h->{mpeak_scale} = $h->{scale};
 	$h->{first_acc} = $h;
+	$h->{spin_mpeak} = $h->{spin};
     }
     Scalar::Util::weaken($h->{first_acc});
 }
@@ -423,7 +426,7 @@ sub print {
     my $merger_mmp = (defined $h->{merger_mmp}) ? $h->{merger_mmp}->{id} : -1;
     my $tt_merger = ($h->{ttmerge} > -1) ? $h->{ttmerge}/1e9 : -1;
     my $file = $tree_outputs{$h->{scale}};
-    $file->printf("%.5f %8s %.5f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.5f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %8s %8s %8s %8s %4s %8s %8s %8s %.5f %8s %s %.5e %.5e %6f %6f %.5f %.3e %.3e %.3e %.3e %.3e %.3e %.3e %.5f %.5f %.5f %.3e %.3f %.3f %.5f %.5f %.5f %8s\n",
+    $file->printf("%.5f %8s %.5f %8s %6s %8s %8s %8s %2s %.5e %.5e %6f %6f %6f %2s %.5f %6f %.5f %.5f %.5f %.3f %.3f %.3f %.3e %.3e %.3e %.5f %8s %8s %8s %8s %4s %8s %8s %8s %.5f %8s %s %.5e %.5e %6f %6f %.5f %.3e %.3e %.3e %.3e %.3e %.3e %.3e %.5f %.5f %.5f %.3e %.3f %.3f %.5f %.5f %.5f %8s %.5f\n",
     $h->{scale}, $h->{id}, $h->{desc_scale}, $h->{descid}, $h->{num_prog},
     $h->{pid}, $h->{upid}, $h->{desc_pid}, $h->{phantom},
     $h->{mvir}, $h->{orig_mvir}, $h->{rvir}, $h->{rs}, $h->{vrms},
@@ -435,6 +438,6 @@ sub print {
     $h->{snapnum}, $h->{next_cop_df}, $h->{lpdfid}, $h->{mlid},
     $h->{tidal_force}, $h->{tidal_id}, $h->{rest},
     $h->{macc}, $h->{mpeak}, $h->{vacc}, $h->{vpeak}, $h->{halfmass},
-    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{dlvmax_inst}, $h->{dlvmax_dyn}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{first_acc}{scale}, $h->{first_acc}{orig_mvir}, $h->{first_acc}{vmax}, $h->{vmpeak}, $h->{tidal_av}, $h->{lvmax_tdyn}, $tt_merger, $merger_mmp);
+    $h->{acc_inst}, $h->{acc_100}, $h->{acc_dyn}, $h->{acc_2dyn}, $h->{acc_mpeak}, $h->{dlvmax_inst}, $h->{dlvmax_dyn}, $h->{mpeak_scale}, $h->{acc_scale}, $h->{first_acc}{scale}, $h->{first_acc}{orig_mvir}, $h->{first_acc}{vmax}, $h->{vmpeak}, $h->{tidal_av}, $h->{lvmax_tdyn}, $tt_merger, $merger_mmp, $h->{spin_mpeak});
 }
 

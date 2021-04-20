@@ -184,7 +184,7 @@ void calc_progenitor_links(void) {
 }
 
 void print_tree_halos(int64_t file_id) {
-  int64_t i,j,k,offset;
+  int64_t i,j,k,l,offset;
   for (i=0; i<num_halos; i++) {
     lh_setval2(lh, &(halos[i].scale), &(halos[i].id), &(halos[i]));
     halos[i].treeroot_id = halos[0].id;
@@ -204,8 +204,8 @@ void print_tree_halos(int64_t file_id) {
   j = (file_id%((int64_t)(BOX_DIVISIONS*BOX_DIVISIONS)))/BOX_DIVISIONS;
   k = file_id%((int64_t)BOX_DIVISIONS);
   offset = ftello(tree_outputs[file_id]);
-  for (i=0; i<num_halos; i++)
-    print_tree_halo(halos + i, tree_outputs[file_id]);
+  for (l=0; l<num_halos; l++)
+    print_tree_halo(halos + l, tree_outputs[file_id]);
     
   int64_t num_bytes = ftello(tree_outputs[file_id]) - offset;
   fprintf(locations, "%"PRId64" %"PRId64" %"PRId64" tree_%"PRId64"_%"PRId64"_%"PRId64".dat  %"PRId64" %"PRId64"\n",
